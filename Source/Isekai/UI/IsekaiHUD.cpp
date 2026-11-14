@@ -8,6 +8,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Interaction/IsekaiInteractionComponent.h"
+#include "Misc/App.h"
 #include "Player/IsekaiCharacter.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Colors/SColorBlock.h"
@@ -18,6 +19,88 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Text/STextBlock.h"
 #include "World/IsekaiTimeOfDay.h"
+
+AIsekaiHUD::AIsekaiHUD()
+{
+	PrimaryActorTick.bCanEverTick = true;
+}
+
+void AIsekaiHUD::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// 느린 화면 중에도 화면 연출은 실제 시간으로 움직인다.
+	const float RealDelta = FApp::GetDeltaTime();
+
+	FadeAlpha = FMath::FInterpConstantTo(FadeAlpha, FadeTarget, RealDelta, FadeSpeed);
+	NarrationAlpha = FMath::FInterpConstantTo(NarrationAlpha, NarrationTarget, RealDelta, 2.5f);
+	TitleAlpha = FMath::FInterpConstantTo(TitleAlpha, TitleTarget, RealDelta, 1.2f);
+	LetterboxAmount = FMath::FInterpTo(LetterboxAmount, bLetterbox ? 1.f : 0.f, RealDelta, 4.f);
+}
+
+void AIsekaiHUD::FadeTo(const FLinearColor& InColor, float TargetAlpha, float Duration)
+{
+	FadeColor = InColor;
+	FadeTarget = FMath::Clamp(TargetAlpha, 0.f, 1.f);
+
+	if (Duration <= 0.f)
+	{
+		FadeAlpha = FadeTarget;
+		FadeSpeed = 1.f;
+	}
+	else
+	{
+		FadeSpeed = FMath::Max(0.01f, FMath::Abs(FadeTarget - FadeAlpha) / Duration);
+	}
+}
+
+void AIsekaiHUD::SetNarration(const FText& InText)
+{
+	if (InText.IsEmpty())
+	{
+		// 글자는 남겨 둔 채 투명해지게 한다.
+		NarrationTarget = 0.f;
+	}
+	else
+	{
+		Narration = InText;
+		NarrationTarget = 1.f;
+	}
+}
+
+void AIsekaiHUD::SetHint(const FText& InText)
+{
+	Hint = InText;
+}
+
+void AIsekaiHUD::SetTitle(const FText& InTitle, const FText& InSubtitle)
+{
+	if (InTitle.IsEmpty())
+	{
+		TitleTarget = 0.f;
+	}
+	else
+	{
+		TitleText = InTitle;
+		SubtitleText = InSubtitle;
+		TitleTarget = 1.f;
+	}
+}
+
+FSlateColor AIsekaiHUD::GetFadeColor() const
+{
+	return FSlateColor(FLinearColor(FadeColor.R, FadeColor.G, FadeColor.B, FadeAlpha));
+}
+
+FSlateColor AIsekaiHUD::GetNarrationColor() const
+{
+	return FSlateColor(FLinearColor(1.f, 1.f, 1.f, NarrationAlpha));
+}
+
+FSlateColor AIsekaiHUD::GetTitleColor() const
+{
+	return FSlateColor(FLinearColor(1.f, 1.f, 1.f, TitleAlpha));
+}
 
 void AIsekaiHUD::BeginPlay()
 {
@@ -32,60 +115,29 @@ void AIsekaiHUD::BeginPlay()
 	const FSlateFontInfo BodyFont = FCoreStyle::GetDefaultFontStyle("Regular", 18);
 	const FSlateFontInfo SpeakerFont = FCoreStyle::GetDefaultFontStyle("Bold", 20);
 	const FSlateFontInfo DialogueFont = FCoreStyle::GetDefaultFontStyle("Regular", 22);
-	const FSlateFontInfo HintFont = FCoreStyle::GetDefaultFontStyle("Regular", 14);
+	const FSlateFontInfo SmallFont = FCoreStyle::GetDefaultFontStyle("Regular", 14);
+	const FSlateFontInfo NarrationFont = FCoreStyle::GetDefaultFontStyle("Regular", 28);
+	const FSlateFontInfo HintFont = FCoreStyle::GetDefaultFontStyle("Bold", 26);
+	const FSlateFontInfo TitleFont = FCoreStyle::GetDefaultFontStyle("Bold", 72);
+	const FSlateFontInfo SubtitleFont = FCoreStyle::GetDefaultFontStyle("Regular", 24);
 
 	const FSlateColor White(FLinearColor::White);
+	const FSlateColor Black(FLinearColor::Black);
 	const FSlateColor ManaColor(FLinearColor(0.5f, 0.8f, 1.f));
 	const FSlateColor HealthColor(FLinearColor(1.f, 0.45f, 0.4f));
-	const FSlateColor SpeakerColor(FLinearColor(1.f, 0.85f, 0.5f));
-	const FSlateColor HintColor(FLinearColor(1.f, 1.f, 1.f, 0.7f));
+	const FSlateColor GoldColor(FLinearColor(1.f, 0.85f, 0.5f));
 	const FVector2D Shadow(1.f, 1.f);
+	const FSlateBrush* WhiteBrush = FCoreStyle::Get().GetBrush("WhiteBrush");
 
 	TWeakObjectPtr<AIsekaiHUD> WeakThis(this);
 
-	TSharedRef<SOverlay> Overlay = SNew(SOverlay)
+	// ---------- 평소 표시 ----------
 
-		// 맞았을 때 화면을 덮는 붉은 막
-		+ SOverlay::Slot()
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Fill)
-		[
-			SNew(SImage)
-			.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
-			.ColorAndOpacity_Lambda([WeakThis]()
-			{
-				return WeakThis.IsValid() ? WeakThis->GetDamageFlashColor() : FSlateColor(FLinearColor::Transparent);
-			})
-		]
-
-		// 목표
-		+ SOverlay::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Top)
-		.Padding(24.f)
-		[
-			SNew(STextBlock)
-			.Font(BodyFont)
-			.ColorAndOpacity(SpeakerColor)
-			.ShadowOffset(Shadow)
-			.Text_Lambda([WeakThis]()
-			{
-				return WeakThis.IsValid() ? WeakThis->GetObjectiveText() : FText::GetEmpty();
-			})
-		]
-
-		// 조작 안내
-		+ SOverlay::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Bottom)
-		.Padding(24.f)
-		[
-			SNew(STextBlock)
-			.Font(HintFont)
-			.ColorAndOpacity(HintColor)
-			.ShadowOffset(Shadow)
-			.Text(FText::FromString(TEXT("좌클릭 마법탄   우클릭 순간 가속   F 빛   E 상호작용   Shift 달리기")))
-		]
+	TSharedRef<SOverlay> Gameplay = SNew(SOverlay)
+		.Visibility_Lambda([WeakThis]()
+		{
+			return WeakThis.IsValid() && WeakThis->IsGameplayVisible() ? EVisibility::SelfHitTestInvisible : EVisibility::Collapsed;
+		})
 
 		// 조준점
 		+ SOverlay::Slot()
@@ -118,6 +170,22 @@ void AIsekaiHUD::BeginPlay()
 			.Text_Lambda([WeakThis]()
 			{
 				return WeakThis.IsValid() ? WeakThis->GetClockText() : FText::GetEmpty();
+			})
+		]
+
+		// 목표
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Top)
+		.Padding(24.f)
+		[
+			SNew(STextBlock)
+			.Font(BodyFont)
+			.ColorAndOpacity(GoldColor)
+			.ShadowOffset(Shadow)
+			.Text_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetObjectiveText() : FText::GetEmpty();
 			})
 		]
 
@@ -170,13 +238,160 @@ void AIsekaiHUD::BeginPlay()
 			{
 				return WeakThis.IsValid() ? WeakThis->GetPromptText() : FText::GetEmpty();
 			})
+		];
+
+	// ---------- 전체 ----------
+
+	TSharedRef<SOverlay> Overlay = SNew(SOverlay)
+
+		// 맞았을 때 화면을 덮는 붉은 막
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		[
+			SNew(SImage)
+			.Image(WhiteBrush)
+			.ColorAndOpacity_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetDamageFlashColor() : FSlateColor(FLinearColor::Transparent);
+			})
+		]
+
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		[
+			Gameplay
+		]
+
+		// 조작 힌트. 평소 표시와 달리 연출 중에도 보인다.
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		.Padding(0.f, 220.f, 0.f, 0.f)
+		[
+			SNew(STextBlock)
+			.Font(HintFont)
+			.ColorAndOpacity(GoldColor)
+			.ShadowOffset(Shadow)
+			.Text_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetHintText() : FText::GetEmpty();
+			})
+		]
+
+		// 화면 전체 페이드
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		[
+			SNew(SImage)
+			.Image(WhiteBrush)
+			.ColorAndOpacity_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetFadeColor() : FSlateColor(FLinearColor::Transparent);
+			})
+		]
+
+		// 위쪽 검은 띠
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Top)
+		[
+			SNew(SBox)
+			.HeightOverride_Lambda([WeakThis]()
+			{
+				return FOptionalSize(WeakThis.IsValid() ? WeakThis->GetLetterboxHeight() : 0.f);
+			})
+			[
+				SNew(SImage)
+				.Image(WhiteBrush)
+				.ColorAndOpacity(Black)
+			]
+		]
+
+		// 아래쪽 검은 띠
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Bottom)
+		[
+			SNew(SBox)
+			.HeightOverride_Lambda([WeakThis]()
+			{
+				return FOptionalSize(WeakThis.IsValid() ? WeakThis->GetLetterboxHeight() : 0.f);
+			})
+			[
+				SNew(SImage)
+				.Image(WhiteBrush)
+				.ColorAndOpacity(Black)
+			]
+		]
+
+		// 가운데 자막
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextBlock)
+			.Font(NarrationFont)
+			.Justification(ETextJustify::Center)
+			.ShadowOffset(Shadow)
+			.ColorAndOpacity_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetNarrationColor() : FSlateColor(FLinearColor::Transparent);
+			})
+			.Text_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetNarrationText() : FText::GetEmpty();
+			})
+		]
+
+		// 제목
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SNew(SVerticalBox)
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Center)
+			[
+				SNew(STextBlock)
+				.Font(TitleFont)
+				.ColorAndOpacity_Lambda([WeakThis]()
+				{
+					return WeakThis.IsValid() ? WeakThis->GetTitleColor() : FSlateColor(FLinearColor::Transparent);
+				})
+				.Text_Lambda([WeakThis]()
+				{
+					return WeakThis.IsValid() ? WeakThis->GetTitleText() : FText::GetEmpty();
+				})
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Center)
+			.Padding(0.f, 16.f, 0.f, 0.f)
+			[
+				SNew(STextBlock)
+				.Font(SubtitleFont)
+				.ColorAndOpacity_Lambda([WeakThis]()
+				{
+					return WeakThis.IsValid() ? WeakThis->GetTitleColor() : FSlateColor(FLinearColor::Transparent);
+				})
+				.Text_Lambda([WeakThis]()
+				{
+					return WeakThis.IsValid() ? WeakThis->GetSubtitleText() : FText::GetEmpty();
+				})
+			]
 		]
 
 		// 대화 상자
 		+ SOverlay::Slot()
 		.HAlign(HAlign_Center)
 		.VAlign(VAlign_Bottom)
-		.Padding(0.f, 0.f, 0.f, 80.f)
+		.Padding(0.f, 0.f, 0.f, 130.f)
 		[
 			SNew(SBox)
 			.WidthOverride(900.f)
@@ -186,7 +401,7 @@ void AIsekaiHUD::BeginPlay()
 			})
 			[
 				SNew(SBorder)
-				.BorderImage(FCoreStyle::Get().GetBrush("WhiteBrush"))
+				.BorderImage(WhiteBrush)
 				.BorderBackgroundColor(FSlateColor(FLinearColor(0.f, 0.f, 0.f, 0.75f)))
 				.Padding(28.f)
 				[
@@ -197,7 +412,7 @@ void AIsekaiHUD::BeginPlay()
 					[
 						SNew(STextBlock)
 						.Font(SpeakerFont)
-						.ColorAndOpacity(SpeakerColor)
+						.ColorAndOpacity(GoldColor)
 						.Text_Lambda([WeakThis]()
 						{
 							return WeakThis.IsValid() ? WeakThis->GetDialogueSpeaker() : FText::GetEmpty();
@@ -224,7 +439,7 @@ void AIsekaiHUD::BeginPlay()
 					.Padding(0.f, 16.f, 0.f, 0.f)
 					[
 						SNew(STextBlock)
-						.Font(HintFont)
+						.Font(SmallFont)
 						.ColorAndOpacity(White)
 						.Text(FText::FromString(TEXT("[E] 다음")))
 					]

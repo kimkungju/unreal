@@ -24,6 +24,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "HAL/IConsoleManager.h"
+#include "Story/IsekaiPrologueDirector.h"
 #include "Math/RandomStream.h"
 #include "World/IsekaiCampfire.h"
 #include "World/IsekaiFloatingStone.h"
@@ -457,7 +458,6 @@ namespace IsekaiGreybox
 			AddAltarLine(TEXT(""), TEXT("제단 위의 공기가 일그러져 있다. 손을 뻗자 손끝부터 가벼워진다."));
 			AddAltarLine(TEXT("나"), TEXT("...이 감각. 내가 이쪽으로 넘어오던 순간과 같아."));
 			AddAltarLine(TEXT(""), TEXT("돌 표면에 낯선 문자가 새겨져 있다. 같은 문양이 북쪽을 가리키고 있다."));
-			Altar->ObjectiveAfter = FText::FromString(TEXT("첫 구역 끝 (프로토타입은 여기까지)"));
 		}
 
 		// 무너진 벽.
@@ -487,15 +487,19 @@ namespace IsekaiGreybox
 		}
 
 		// 중력이 약해지는 지대. 단상 전체와 그 위 공간을 덮는다.
-		if (AIsekaiGravityAnomaly* Anomaly = Builder.Spawn<AIsekaiGravityAnomaly>(
-			FVector(RuinsCenter.X, 0.0, DaisTopZ + 1500.0), FRotator::ZeroRotator, TEXT("GravityAnomaly"), TEXT("Greybox/Anomaly")))
+		AIsekaiGravityAnomaly* AnomalyActor = Builder.Spawn<AIsekaiGravityAnomaly>(
+			FVector(RuinsCenter.X, 0.0, DaisTopZ + 1500.0), FRotator::ZeroRotator, TEXT("GravityAnomaly"), TEXT("Greybox/Anomaly"));
+		if (AnomalyActor)
 		{
-			Anomaly->GetZone()->SetBoxExtent(FVector(2800.0, 2800.0, 1600.0));
+			AnomalyActor->GetZone()->SetBoxExtent(FVector(2800.0, 2800.0, 1600.0));
 		}
 
 		// ---------- 플레이 요소 ----------
 
-		const FVector StartLocation(0.0, 0.0, 100.0);
+		// 프롤로그는 폐허 위 하늘에서 떨어지며 시작한다.
+		const FVector DaisCenter(RuinsCenter.X, 0.0, DaisTopZ);
+		const FVector StartLocation = DaisCenter + FVector(-300.0, 0.0, 26000.0);
+		const FRotator StartRotation(0.0, 180.0, 0.0);
 
 		// 시작 지점. 레벨에 이미 있으면 옮기고, 없으면 만든다.
 		{
@@ -508,28 +512,30 @@ namespace IsekaiGreybox
 
 			if (PlayerStart)
 			{
-				PlayerStart->SetActorLocationAndRotation(StartLocation, FRotator::ZeroRotator);
+				PlayerStart->SetActorLocationAndRotation(StartLocation, StartRotation);
 			}
 			else
 			{
-				Builder.Spawn<APlayerStart>(StartLocation, FRotator::ZeroRotator, TEXT("PlayerStart"), TEXT("Greybox/Gameplay"));
+				Builder.Spawn<APlayerStart>(StartLocation, StartRotation, TEXT("PlayerStart"), TEXT("Greybox/Gameplay"));
 			}
 		}
 
-		// 대사는 흐름을 보기 위한 임시 내용이다. 주인공과 세계의 설정이 정해지면 다시 쓴다.
+		// 프롤로그의 마법사와 진행 담당. 마법사의 대사는 진행 담당이 직접 띄우므로 비워 둔다.
 		{
-			TArray<TPair<FString, FString>> Lines;
-			Lines.Emplace(TEXT(""), TEXT("눈을 떴구나. 길가에 쓰러져 있길래 여기까지 옮겨 놨다."));
-			Lines.Emplace(TEXT("나"), TEXT("여기는... 어디죠?"));
-			Lines.Emplace(TEXT(""), TEXT("변경의 끝자락이다. 그것도 모르는 걸 보니 꽤 멀리서 온 모양이군."));
-			Lines.Emplace(TEXT(""), TEXT("손을 앞으로 뻗어 봐라. ...역시, 마력이 흐른다. 저쪽 기둥에 쏴 봐라. (마우스 왼쪽)"));
-			Lines.Emplace(TEXT(""), TEXT("동쪽 고갯길 너머 폐허에서 며칠 전부터 돌이 하늘로 떠오르고 있다. 네가 나타난 바로 그날부터다."));
-			Lines.Emplace(TEXT(""), TEXT("등불을 따라가면 닿는다. 가는 길에 짐승이 나오니 조심해라."));
-			if (AIsekaiNPC* Mage = Builder.AddNPC(FVector(700.0, 450.0, 0.0), StartLocation, TEXT("떠돌이 마법사"), Lines))
+			const TArray<TPair<FString, FString>> NoLines;
+			AIsekaiNPC* MageActor = Builder.AddNPC(DaisCenter + FVector(-1700.0, 300.0, 0.0), DaisCenter, TEXT("마법사"), NoLines);
+
+			AIsekaiPrologueDirector* Director = Builder.Spawn<AIsekaiPrologueDirector>(DaisCenter + FVector(0.0, 0.0, 300.0),
+				FRotator::ZeroRotator, TEXT("PrologueDirector"), TEXT("Greybox/Gameplay"));
+			if (Director)
 			{
-				Mage->ObjectiveAfterTalk = FText::FromString(TEXT("등불을 따라 동쪽 폐허로 가자"));
+				Director->Mage = MageActor;
+				Director->Anomaly = AnomalyActor;
+				Director->DaisCenter = DaisCenter;
 			}
 		}
+
+		// 마을 주민. 대사는 임시 내용이다.
 		{
 			TArray<TPair<FString, FString>> Lines;
 			Lines.Emplace(TEXT(""), TEXT("고갯길 쪽으로 가려고? 요즘 그쪽 짐승들이 부쩍 사나워졌어."));
@@ -558,10 +564,7 @@ namespace IsekaiGreybox
 		// 조우 2: 고갯길을 다 올랐을 때 기다리는 하나.
 		Builder.AddEnemy(FVector(HighlandStartX + 2200.0, 300.0, HighlandZ), Path[7], 2);
 
-		// 조우 3: 폐허 단상의 셋. 중력이 약한 곳에서 싸운다.
-		Builder.AddEnemy(FVector(RuinsCenter.X, 900.0, DaisTopZ), Path[9], 3);
-		Builder.AddEnemy(FVector(RuinsCenter.X, -900.0, DaisTopZ), Path[9], 4);
-		Builder.AddEnemy(FVector(RuinsCenter.X + 1300.0, 0.0, DaisTopZ), Path[9], 5);
+		// 폐허의 짐승은 프롤로그 진행에 맞춰 실행 중에 나타난다. 여기서는 놓지 않는다.
 
 		// ---------- 마무리 ----------
 

@@ -38,6 +38,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Spell")
 	float GetMana() const { return Mana; }
 
+	/** 시전에 성공했을 때 알린다. 화면 흔들림이나 연출이 여기에 건다. */
+	FSimpleMulticastDelegate OnAttackCast;
+	FSimpleMulticastDelegate OnDashCast;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell", meta = (ClampMin = "1"))
 	float MaxMana = 100.f;
 

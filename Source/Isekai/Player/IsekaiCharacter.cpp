@@ -19,10 +19,11 @@
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
 #include "Interaction/IsekaiInteractionComponent.h"
+#include "Misc/App.h"
 
 AIsekaiCharacter::AIsekaiCharacter()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(GetCapsuleComponent());
@@ -53,6 +54,45 @@ void AIsekaiCharacter::BeginPlay()
 	RespawnTransform = GetActorTransform();
 	Health->OnDied.AddDynamic(this, &AIsekaiCharacter::HandleDied);
 	Health->OnHealthChanged.AddDynamic(this, &AIsekaiCharacter::HandleHealthChanged);
+
+	CameraBaseLocation = Camera->GetRelativeLocation();
+	TargetFOV = Camera->FieldOfView;
+	Spells->OnAttackCast.AddUObject(this, &AIsekaiCharacter::HandleAttackCast);
+}
+
+void AIsekaiCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// 느린 화면(시간 배율) 중에도 흔들림과 시야각은 실제 시간으로 움직인다.
+	const float RealDelta = FApp::GetDeltaTime();
+
+	if (ShakeStrength > 0.01f)
+	{
+		const FVector Jitter(FMath::FRandRange(-1.f, 1.f), FMath::FRandRange(-1.f, 1.f), FMath::FRandRange(-1.f, 1.f));
+		Camera->SetRelativeLocation(CameraBaseLocation + Jitter * ShakeStrength * 7.f);
+		ShakeStrength = FMath::FInterpTo(ShakeStrength, 0.f, RealDelta, 6.f);
+	}
+	else if (ShakeStrength > 0.f)
+	{
+		ShakeStrength = 0.f;
+		Camera->SetRelativeLocation(CameraBaseLocation);
+	}
+
+	if (!FMath::IsNearlyEqual(Camera->FieldOfView, TargetFOV, 0.05f))
+	{
+		Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, TargetFOV, RealDelta, 3.f));
+	}
+}
+
+void AIsekaiCharacter::AddCameraShake(float Strength)
+{
+	ShakeStrength = FMath::Max(ShakeStrength, Strength);
+}
+
+void AIsekaiCharacter::HandleAttackCast()
+{
+	AddCameraShake(0.2f);
 }
 
 void AIsekaiCharacter::HandleHealthChanged(float NewHealth, float Delta)
@@ -60,6 +100,7 @@ void AIsekaiCharacter::HandleHealthChanged(float NewHealth, float Delta)
 	if (Delta < 0.f && GetWorld())
 	{
 		LastDamageTime = GetWorld()->GetTimeSeconds();
+		AddCameraShake(0.7f);
 	}
 }
 
@@ -200,7 +241,7 @@ bool AIsekaiCharacter::IsInDialogue() const
 
 void AIsekaiCharacter::OnJumpStarted()
 {
-	if (!IsInDialogue())
+	if (!IsInDialogue() && !bMoveLocked)
 	{
 		Jump();
 	}
@@ -208,8 +249,8 @@ void AIsekaiCharacter::OnJumpStarted()
 
 void AIsekaiCharacter::OnMove(const FInputActionValue& Value)
 {
-	// 대화 중에는 움직이거나 둘러보지 않는다.
-	if (IsInDialogue())
+	// 대화나 연출 중에는 움직이지 않는다.
+	if (IsInDialogue() || bMoveLocked)
 	{
 		return;
 	}
@@ -221,7 +262,7 @@ void AIsekaiCharacter::OnMove(const FInputActionValue& Value)
 
 void AIsekaiCharacter::OnLook(const FInputActionValue& Value)
 {
-	if (IsInDialogue())
+	if (IsInDialogue() || bLookLocked)
 	{
 		return;
 	}
@@ -250,12 +291,17 @@ void AIsekaiCharacter::OnInteract()
 		return;
 	}
 
+	if (bMoveLocked)
+	{
+		return;
+	}
+
 	Interaction->TryInteract();
 }
 
 void AIsekaiCharacter::OnCastAttack()
 {
-	if (!IsInDialogue())
+	if (!IsInDialogue() && bCanCastAttack)
 	{
 		Spells->CastAttack();
 	}
@@ -263,7 +309,7 @@ void AIsekaiCharacter::OnCastAttack()
 
 void AIsekaiCharacter::OnCastDash()
 {
-	if (!IsInDialogue())
+	if (!IsInDialogue() && bCanCastDash && !bMoveLocked)
 	{
 		Spells->CastDash();
 	}

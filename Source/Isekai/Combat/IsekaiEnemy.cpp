@@ -3,8 +3,9 @@
 #include "Combat/IsekaiHealthComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Engine/Engine.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/StaticMeshActor.h"
+#include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
@@ -33,6 +34,12 @@ AIsekaiEnemy::AIsekaiEnemy()
 		Placeholder->SetStaticMesh(ConeMesh.Object);
 	}
 
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> CubeMesh(TEXT("/Engine/BasicShapes/Cube.Cube"));
+	if (CubeMesh.Succeeded())
+	{
+		ShardMesh = CubeMesh.Object;
+	}
+
 	Health = CreateDefaultSubobject<UIsekaiHealthComponent>(TEXT("Health"));
 	Health->MaxHealth = 75.f;
 }
@@ -46,6 +53,30 @@ void AIsekaiEnemy::BeginPlay()
 
 	Health->OnHealthChanged.AddDynamic(this, &AIsekaiEnemy::HandleHealthChanged);
 	Health->OnDied.AddDynamic(this, &AIsekaiEnemy::HandleDied);
+}
+
+void AIsekaiEnemy::StartChasing()
+{
+	if (State == EState::Idle)
+	{
+		SetState(EState::Chase);
+	}
+}
+
+void AIsekaiEnemy::MakeElite()
+{
+	// 커진 만큼 발이 땅에 묻히지 않도록 먼저 들어 올린다.
+	AddActorWorldOffset(FVector(0.f, 0.f, 60.f));
+	SetActorScale3D(FVector(1.6f));
+	Health->MaxHealth = 175.f;
+	Health->ResetHealth();
+	AttackDamage = 30.f;
+	AttackRange = 240.f;
+	WindupTime = 1.0f;
+	RecoverTime = 1.6f;
+	MoveSpeed = 330.f;
+	KnockbackSpeed = 150.f;
+	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
 }
 
 void AIsekaiEnemy::SetState(EState NewState)
@@ -134,15 +165,19 @@ void AIsekaiEnemy::Tick(float DeltaSeconds)
 
 void AIsekaiEnemy::HandleHealthChanged(float NewHealth, float Delta)
 {
-	if (Delta >= 0.f)
+	if (Delta >= 0.f || State == EState::Dead)
 	{
 		return;
 	}
 
-	if (GEngine)
+	// 맞으면 플레이어 반대쪽으로 밀린다.
+	if (KnockbackSpeed > 0.f)
 	{
-		GEngine->AddOnScreenDebugMessage(static_cast<uint64>(GetUniqueID()), 1.5f, FColor::Orange,
-			FString::Printf(TEXT("%s  HP %.0f / %.0f"), *GetName(), NewHealth, Health->MaxHealth));
+		if (const APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0))
+		{
+			const FVector Away = (GetActorLocation() - PlayerPawn->GetActorLocation()).GetSafeNormal2D();
+			LaunchCharacter(Away * KnockbackSpeed + FVector(0.f, 0.f, 120.f), true, true);
+		}
 	}
 
 	// 멀리서 맞아도 쫓아오게 한다.
@@ -155,7 +190,47 @@ void AIsekaiEnemy::HandleHealthChanged(float NewHealth, float Delta)
 void AIsekaiEnemy::HandleDied(AActor* Killer)
 {
 	SetState(EState::Dead);
+	SpawnShards();
 	SetActorEnableCollision(false);
 	SetActorHiddenInGame(true);
 	SetLifeSpan(0.5f);
+}
+
+void AIsekaiEnemy::SpawnShards()
+{
+	UWorld* World = GetWorld();
+	if (!World || !ShardMesh)
+	{
+		return;
+	}
+
+	const float SizeScale = GetActorScale3D().X;
+
+	for (int32 Index = 0; Index < 8; ++Index)
+	{
+		const FVector Offset(FMath::FRandRange(-40.f, 40.f), FMath::FRandRange(-40.f, 40.f), FMath::FRandRange(-60.f, 60.f));
+
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+		AStaticMeshActor* Shard = World->SpawnActor<AStaticMeshActor>(AStaticMeshActor::StaticClass(),
+			GetActorLocation() + Offset * SizeScale, FRotator(FMath::FRandRange(0.f, 360.f), FMath::FRandRange(0.f, 360.f), 0.f), Params);
+		if (!Shard)
+		{
+			continue;
+		}
+
+		Shard->SetMobility(EComponentMobility::Movable);
+		Shard->SetActorScale3D(FVector(FMath::FRandRange(0.15f, 0.35f) * SizeScale));
+
+		UStaticMeshComponent* ShardComponent = Shard->GetStaticMeshComponent();
+		ShardComponent->SetStaticMesh(ShardMesh);
+		ShardComponent->SetCollisionProfileName(TEXT("PhysicsActor"));
+		ShardComponent->SetSimulatePhysics(true);
+
+		const FVector Burst = (Offset.GetSafeNormal() + FVector(0.f, 0.f, 0.8f)) * FMath::FRandRange(350.f, 650.f);
+		ShardComponent->AddImpulse(Burst, NAME_None, true);
+
+		Shard->SetLifeSpan(2.5f);
+	}
 }

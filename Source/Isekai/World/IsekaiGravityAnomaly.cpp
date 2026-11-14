@@ -42,3 +42,15 @@ void AIsekaiGravityAnomaly::ApplyGravity(AActor* OtherActor, float Scale) const
 		Character->GetCharacterMovement()->GravityScale = Scale;
 	}
 }
+
+void AIsekaiGravityAnomaly::SetGravityScaleInside(float NewScale)
+{
+	GravityScaleInside = NewScale;
+
+	TArray<AActor*> Inside;
+	Zone->GetOverlappingActors(Inside, ACharacter::StaticClass());
+	for (AActor* Actor : Inside)
+	{
+		ApplyGravity(Actor, GravityScaleInside);
+	}
+}

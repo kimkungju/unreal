@@ -67,5 +67,11 @@ void AIsekaiSpellProjectile::HandleHit(UPrimitiveComponent* HitComponent, AActor
 		UGameplayStatics::ApplyDamage(OtherActor, Damage, GetInstigatorController(), this, nullptr);
 	}
 
-	Destroy();
+	// 바로 사라지지 않고, 멈춘 자리에서 한순간 크게 번쩍인 뒤 사라진다.
+	Movement->StopMovementImmediately();
+	Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Mesh->SetVisibility(false);
+	Glow->SetIntensity(40000.f);
+	Glow->SetAttenuationRadius(900.f);
+	SetLifeSpan(0.12f);
 }

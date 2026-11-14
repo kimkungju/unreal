@@ -29,6 +29,8 @@ class ISEKAI_API AIsekaiCharacter : public ACharacter
 public:
 	AIsekaiCharacter();
 
+	virtual void Tick(float DeltaSeconds) override;
+
 	UFUNCTION(BlueprintPure, Category = "Isekai")
 	UIsekaiInteractionComponent* GetInteraction() const { return Interaction; }
 
@@ -47,6 +49,27 @@ public:
 	/** 체력과 마나를 채우고, 쓰러졌을 때 돌아올 자리를 지금 위치로 바꾼다. */
 	UFUNCTION(BlueprintCallable, Category = "Isekai")
 	void Rest();
+
+	/** 화면을 흔든다. 1이 강한 충격. 이미 더 세게 흔들리고 있으면 무시된다. */
+	UFUNCTION(BlueprintCallable, Category = "Isekai")
+	void AddCameraShake(float Strength);
+
+	/** 시야각을 부드럽게 바꾼다. 떨어질 때 넓히는 식으로 쓴다. */
+	UFUNCTION(BlueprintCallable, Category = "Isekai")
+	void SetTargetFOV(float NewFOV) { TargetFOV = NewFOV; }
+
+	/** 연출 중에 플레이어의 조작을 막는 스위치들 */
+	UPROPERTY(BlueprintReadWrite, Category = "Isekai")
+	bool bMoveLocked = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Isekai")
+	bool bLookLocked = false;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Isekai")
+	bool bCanCastAttack = true;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Isekai")
+	bool bCanCastDash = true;
 
 	/** 마지막으로 맞은 시각 (월드 시간, 초). 맞은 적이 없으면 아주 작은 값. */
 	float GetLastDamageTime() const { return LastDamageTime; }
@@ -96,6 +119,12 @@ private:
 
 	FTransform RespawnTransform;
 	float LastDamageTime = -1000.f;
+
+	void HandleAttackCast();
+
+	FVector CameraBaseLocation = FVector::ZeroVector;
+	float ShakeStrength = 0.f;
+	float TargetFOV = 90.f;
 
 	bool IsInDialogue() const;
 

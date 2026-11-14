@@ -59,6 +59,7 @@ bool UIsekaiSpellComponent::CastAttack()
 
 	Mana -= AttackManaCost;
 	CooldownRemaining = AttackCooldown;
+	OnAttackCast.Broadcast();
 	return true;
 }
 
@@ -92,5 +93,6 @@ bool UIsekaiSpellComponent::CastDash()
 
 	Mana -= DashManaCost;
 	DashCooldownRemaining = DashCooldown;
+	OnDashCast.Broadcast();
 	return true;
 }
