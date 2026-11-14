@@ -19,6 +19,17 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	/** 레벨에 NPC가 하나도 없으면 시작 지점 근처에 1명을 만든다. 시험용. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bSpawnTestNPC = true;
+
 private:
 	void SpawnTestDummies();
+	void SpawnTestNPC();
+
+	/** 시작 지점의 위치와 바라보는 방향. 시작 지점이 없으면 원점. */
+	void GetStartTransform(FVector& OutLocation, FRotator& OutFacing) const;
+
+	/** 주어진 지점 아래의 바닥 높이를 찾는다. 못 찾으면 원래 높이. */
+	float FindGroundZ(const FVector& Location) const;
 };

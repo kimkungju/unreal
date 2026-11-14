@@ -3,6 +3,7 @@
 #include "Camera/CameraComponent.h"
 #include "Combat/IsekaiSpellComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Dialogue/IsekaiDialogueComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
@@ -25,6 +26,7 @@ AIsekaiCharacter::AIsekaiCharacter()
 
 	Interaction = CreateDefaultSubobject<UIsekaiInteractionComponent>(TEXT("Interaction"));
 	Spells = CreateDefaultSubobject<UIsekaiSpellComponent>(TEXT("Spells"));
+	Dialogue = CreateDefaultSubobject<UIsekaiDialogueComponent>(TEXT("Dialogue"));
 }
 
 void AIsekaiCharacter::BeginPlay()
@@ -104,7 +106,7 @@ void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 	Input->BindAction(MoveAction, ETriggerEvent::Triggered, this, &AIsekaiCharacter::OnMove);
 	Input->BindAction(LookAction, ETriggerEvent::Triggered, this, &AIsekaiCharacter::OnLook);
-	Input->BindAction(JumpAction, ETriggerEvent::Started, this, &ACharacter::Jump);
+	Input->BindAction(JumpAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnJumpStarted);
 	Input->BindAction(JumpAction, ETriggerEvent::Completed, this, &ACharacter::StopJumping);
 	Input->BindAction(SprintAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnSprintStarted);
 	Input->BindAction(SprintAction, ETriggerEvent::Completed, this, &AIsekaiCharacter::OnSprintCompleted);
@@ -131,8 +133,27 @@ void AIsekaiCharacter::PawnClientRestart()
 	}
 }
 
+bool AIsekaiCharacter::IsInDialogue() const
+{
+	return Dialogue->IsActive();
+}
+
+void AIsekaiCharacter::OnJumpStarted()
+{
+	if (!IsInDialogue())
+	{
+		Jump();
+	}
+}
+
 void AIsekaiCharacter::OnMove(const FInputActionValue& Value)
 {
+	// 대화 중에는 움직이거나 둘러보지 않는다.
+	if (IsInDialogue())
+	{
+		return;
+	}
+
 	const FVector2D Axis = Value.Get<FVector2D>();
 	AddMovementInput(GetActorForwardVector(), Axis.Y);
 	AddMovementInput(GetActorRightVector(), Axis.X);
@@ -140,6 +161,11 @@ void AIsekaiCharacter::OnMove(const FInputActionValue& Value)
 
 void AIsekaiCharacter::OnLook(const FInputActionValue& Value)
 {
+	if (IsInDialogue())
+	{
+		return;
+	}
+
 	const FVector2D Axis = Value.Get<FVector2D>();
 	AddControllerYawInput(Axis.X);
 	AddControllerPitchInput(Axis.Y);
@@ -157,10 +183,20 @@ void AIsekaiCharacter::OnSprintCompleted()
 
 void AIsekaiCharacter::OnInteract()
 {
+	// 대화 중의 E는 다음 대사로 넘기는 키다.
+	if (IsInDialogue())
+	{
+		Dialogue->Advance();
+		return;
+	}
+
 	Interaction->TryInteract();
 }
 
 void AIsekaiCharacter::OnCastAttack()
 {
-	Spells->CastAttack();
+	if (!IsInDialogue())
+	{
+		Spells->CastAttack();
+	}
 }

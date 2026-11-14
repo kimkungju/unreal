@@ -7,6 +7,7 @@
 class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
+class UIsekaiDialogueComponent;
 class UIsekaiInteractionComponent;
 class UIsekaiSpellComponent;
 struct FInputActionValue;
@@ -30,6 +31,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Isekai")
 	UIsekaiSpellComponent* GetSpells() const { return Spells; }
 
+	UFUNCTION(BlueprintPure, Category = "Isekai")
+	UIsekaiDialogueComponent* GetDialogue() const { return Dialogue; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed = 300.f;
 
@@ -50,11 +54,16 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UIsekaiSpellComponent> Spells;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UIsekaiDialogueComponent> Dialogue;
+
 private:
 	void BuildDefaultInput();
+	bool IsInDialogue() const;
 
 	void OnMove(const FInputActionValue& Value);
 	void OnLook(const FInputActionValue& Value);
+	void OnJumpStarted();
 	void OnSprintStarted();
 	void OnSprintCompleted();
 	void OnInteract();

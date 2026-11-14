@@ -1,4 +1,4 @@
-using UnrealBuildTool;
+﻿using UnrealBuildTool;
 
 public class Isekai : ModuleRules
 {
@@ -15,7 +15,9 @@ public class Isekai : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"InputCore",
-			"EnhancedInput"
+			"EnhancedInput",
+			"Slate",
+			"SlateCore"
 		});
 	}
 }
