@@ -7,7 +7,7 @@ UIsekaiDialogueComponent::UIsekaiDialogueComponent()
 
 bool UIsekaiDialogueComponent::StartDialogue(const TArray<FIsekaiDialogueLine>& InLines)
 {
-	if (IsActive() || InLines.Num() == 0)
+	if (IsDialogueActive() || InLines.Num() == 0)
 	{
 		return false;
 	}
@@ -20,7 +20,7 @@ bool UIsekaiDialogueComponent::StartDialogue(const TArray<FIsekaiDialogueLine>& 
 
 void UIsekaiDialogueComponent::Advance()
 {
-	if (!IsActive())
+	if (!IsDialogueActive())
 	{
 		return;
 	}
@@ -47,5 +47,5 @@ void UIsekaiDialogueComponent::EndDialogue()
 
 FIsekaiDialogueLine UIsekaiDialogueComponent::GetCurrentLine() const
 {
-	return IsActive() ? Lines[CurrentIndex] : FIsekaiDialogueLine();
+	return IsDialogueActive() ? Lines[CurrentIndex] : FIsekaiDialogueLine();
 }

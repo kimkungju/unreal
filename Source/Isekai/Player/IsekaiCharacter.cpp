@@ -135,7 +135,7 @@ void AIsekaiCharacter::PawnClientRestart()
 
 bool AIsekaiCharacter::IsInDialogue() const
 {
-	return Dialogue->IsActive();
+	return Dialogue->IsDialogueActive();
 }
 
 void AIsekaiCharacter::OnJumpStarted()

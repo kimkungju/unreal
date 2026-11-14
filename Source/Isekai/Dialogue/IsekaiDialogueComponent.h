@@ -43,7 +43,7 @@ public:
 	void EndDialogue();
 
 	UFUNCTION(BlueprintPure, Category = "Dialogue")
-	bool IsActive() const { return Lines.IsValidIndex(CurrentIndex); }
+	bool IsDialogueActive() const { return Lines.IsValidIndex(CurrentIndex); }
 
 	/** 대화 중이 아니면 빈 대사를 돌려준다. */
 	UFUNCTION(BlueprintPure, Category = "Dialogue")

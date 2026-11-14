@@ -239,7 +239,7 @@ FText AIsekaiHUD::GetPromptText() const
 bool AIsekaiHUD::IsDialogueActive() const
 {
 	const AIsekaiCharacter* Character = GetCharacter();
-	return Character && Character->GetDialogue()->IsActive();
+	return Character && Character->GetDialogue()->IsDialogueActive();
 }
 
 FText AIsekaiHUD::GetDialogueSpeaker() const
