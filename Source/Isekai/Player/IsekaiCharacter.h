@@ -8,6 +8,7 @@ class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
 class UIsekaiDialogueComponent;
+class UIsekaiHealthComponent;
 class UIsekaiInteractionComponent;
 class UIsekaiSpellComponent;
 struct FInputActionValue;
@@ -34,6 +35,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Isekai")
 	UIsekaiDialogueComponent* GetDialogue() const { return Dialogue; }
 
+	UFUNCTION(BlueprintPure, Category = "Isekai")
+	UIsekaiHealthComponent* GetHealthComponent() const { return Health; }
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed = 300.f;
 
@@ -57,8 +61,18 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UIsekaiDialogueComponent> Dialogue;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UIsekaiHealthComponent> Health;
+
 private:
 	void BuildDefaultInput();
+
+	/** 쓰러지면 시작 지점으로 돌아가 체력을 회복한다. 임시 처리. */
+	UFUNCTION()
+	void HandleDied(AActor* Killer);
+
+	FTransform RespawnTransform;
+
 	bool IsInDialogue() const;
 
 	void OnMove(const FInputActionValue& Value);
