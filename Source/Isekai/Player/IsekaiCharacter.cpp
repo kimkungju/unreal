@@ -4,9 +4,12 @@
 #include "Combat/IsekaiHealthComponent.h"
 #include "Combat/IsekaiSpellComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Dialogue/IsekaiDialogueComponent.h"
+#include "Dialogue/IsekaiObjectiveComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/Engine.h"
+#include "Engine/World.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -30,6 +33,16 @@ AIsekaiCharacter::AIsekaiCharacter()
 	Spells = CreateDefaultSubobject<UIsekaiSpellComponent>(TEXT("Spells"));
 	Dialogue = CreateDefaultSubobject<UIsekaiDialogueComponent>(TEXT("Dialogue"));
 	Health = CreateDefaultSubobject<UIsekaiHealthComponent>(TEXT("Health"));
+	Objectives = CreateDefaultSubobject<UIsekaiObjectiveComponent>(TEXT("Objectives"));
+
+	SpellLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("SpellLight"));
+	SpellLight->SetupAttachment(Camera);
+	SpellLight->SetRelativeLocation(FVector(40.f, 25.f, -15.f));
+	SpellLight->SetIntensity(5000.f);
+	SpellLight->SetAttenuationRadius(1800.f);
+	SpellLight->SetLightColor(FLinearColor(0.75f, 0.85f, 1.f));
+	SpellLight->SetCastShadows(false);
+	SpellLight->SetVisibility(false);
 }
 
 void AIsekaiCharacter::BeginPlay()
@@ -39,13 +52,29 @@ void AIsekaiCharacter::BeginPlay()
 
 	RespawnTransform = GetActorTransform();
 	Health->OnDied.AddDynamic(this, &AIsekaiCharacter::HandleDied);
+	Health->OnHealthChanged.AddDynamic(this, &AIsekaiCharacter::HandleHealthChanged);
+}
+
+void AIsekaiCharacter::HandleHealthChanged(float NewHealth, float Delta)
+{
+	if (Delta < 0.f && GetWorld())
+	{
+		LastDamageTime = GetWorld()->GetTimeSeconds();
+	}
+}
+
+void AIsekaiCharacter::Rest()
+{
+	Health->ResetHealth();
+	Spells->RestoreMana();
+	RespawnTransform = GetActorTransform();
 }
 
 void AIsekaiCharacter::HandleDied(AActor* Killer)
 {
 	if (GEngine)
 	{
-		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("You were defeated. Back to the start."));
+		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("You were defeated. Back to the last rest point."));
 	}
 
 	Dialogue->EndDialogue();
@@ -80,6 +109,8 @@ void AIsekaiCharacter::BuildDefaultInput()
 	SprintAction = MakeAction(TEXT("IA_Sprint"), EInputActionValueType::Boolean);
 	InteractAction = MakeAction(TEXT("IA_Interact"), EInputActionValueType::Boolean);
 	CastAttackAction = MakeAction(TEXT("IA_CastAttack"), EInputActionValueType::Boolean);
+	CastDashAction = MakeAction(TEXT("IA_CastDash"), EInputActionValueType::Boolean);
+	ToggleLightAction = MakeAction(TEXT("IA_ToggleLight"), EInputActionValueType::Boolean);
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Default"));
 
@@ -115,6 +146,8 @@ void AIsekaiCharacter::BuildDefaultInput()
 	MappingContext->MapKey(SprintAction, EKeys::LeftShift);
 	MappingContext->MapKey(InteractAction, EKeys::E);
 	MappingContext->MapKey(CastAttackAction, EKeys::LeftMouseButton);
+	MappingContext->MapKey(CastDashAction, EKeys::RightMouseButton);
+	MappingContext->MapKey(ToggleLightAction, EKeys::F);
 }
 
 void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -137,6 +170,8 @@ void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	Input->BindAction(SprintAction, ETriggerEvent::Completed, this, &AIsekaiCharacter::OnSprintCompleted);
 	Input->BindAction(InteractAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnInteract);
 	Input->BindAction(CastAttackAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnCastAttack);
+	Input->BindAction(CastDashAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnCastDash);
+	Input->BindAction(ToggleLightAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnToggleLight);
 }
 
 void AIsekaiCharacter::PawnClientRestart()
@@ -223,5 +258,31 @@ void AIsekaiCharacter::OnCastAttack()
 	if (!IsInDialogue())
 	{
 		Spells->CastAttack();
+	}
+}
+
+void AIsekaiCharacter::OnCastDash()
+{
+	if (!IsInDialogue())
+	{
+		Spells->CastDash();
+	}
+}
+
+void AIsekaiCharacter::OnToggleLight()
+{
+	if (IsInDialogue())
+	{
+		return;
+	}
+
+	// 끄는 데는 마나가 들지 않는다.
+	if (SpellLight->IsVisible())
+	{
+		SpellLight->SetVisibility(false);
+	}
+	else if (Spells->TrySpendMana(Spells->LightManaCost))
+	{
+		SpellLight->SetVisibility(true);
 	}
 }

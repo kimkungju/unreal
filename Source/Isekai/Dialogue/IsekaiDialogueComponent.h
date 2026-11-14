@@ -42,6 +42,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Dialogue")
 	void EndDialogue();
 
+	/** 지금 진행 중인 대화가 끝나면 목표를 이 내용으로 바꾼다. StartDialogue 직후에 부른다. */
+	UFUNCTION(BlueprintCallable, Category = "Dialogue")
+	void SetObjectiveOnEnd(const FText& Objective) { PendingObjective = Objective; }
+
 	UFUNCTION(BlueprintPure, Category = "Dialogue")
 	bool IsDialogueActive() const { return Lines.IsValidIndex(CurrentIndex); }
 
@@ -60,4 +64,5 @@ private:
 	TArray<FIsekaiDialogueLine> Lines;
 
 	int32 CurrentIndex = INDEX_NONE;
+	FText PendingObjective;
 };

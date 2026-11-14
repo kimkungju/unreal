@@ -14,6 +14,7 @@
 #include "Components/LightComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Dialogue/IsekaiExaminable.h"
 #include "Dialogue/IsekaiNPC.h"
 #include "Engine/DirectionalLight.h"
 #include "Engine/PointLight.h"
@@ -24,6 +25,7 @@
 #include "GameFramework/PlayerStart.h"
 #include "HAL/IConsoleManager.h"
 #include "Math/RandomStream.h"
+#include "World/IsekaiCampfire.h"
 #include "World/IsekaiFloatingStone.h"
 #include "World/IsekaiGravityAnomaly.h"
 
@@ -437,9 +439,28 @@ namespace IsekaiGreybox
 				FRotator::ZeroRotator, FString::Printf(TEXT("Ruins_Column_%02d"), Index), TEXT("Greybox/Ruins"));
 		}
 
-		// 가운데의 제단과 무너진 벽.
-		Builder.AddBox(FVector(RuinsCenter.X + 600.0, 0.0, DaisTopZ + 60.0), FVector(200.0, 300.0, 120.0),
-			FRotator::ZeroRotator, TEXT("Ruins_Altar"), TEXT("Greybox/Ruins"));
+		// 가운데의 제단. 살펴보면 첫 구역이 끝난다. 대사는 임시 내용이다.
+		if (AIsekaiExaminable* Altar = Builder.Spawn<AIsekaiExaminable>(FVector(RuinsCenter.X + 600.0, 0.0, DaisTopZ + 60.0),
+			FRotator::ZeroRotator, TEXT("Ruins_Altar"), TEXT("Greybox/Ruins")))
+		{
+			Altar->SetActorScale3D(FVector(2.0, 3.0, 1.2));
+			Altar->PromptText = FText::FromString(TEXT("제단 살펴보기"));
+
+			auto AddAltarLine = [Altar](const TCHAR* Speaker, const TCHAR* Text)
+			{
+				FIsekaiDialogueLine Line;
+				Line.Speaker = FText::FromString(FString(Speaker));
+				Line.Text = FText::FromString(FString(Text));
+				Altar->Lines.Add(Line);
+			};
+
+			AddAltarLine(TEXT(""), TEXT("제단 위의 공기가 일그러져 있다. 손을 뻗자 손끝부터 가벼워진다."));
+			AddAltarLine(TEXT("나"), TEXT("...이 감각. 내가 이쪽으로 넘어오던 순간과 같아."));
+			AddAltarLine(TEXT(""), TEXT("돌 표면에 낯선 문자가 새겨져 있다. 같은 문양이 북쪽을 가리키고 있다."));
+			Altar->ObjectiveAfter = FText::FromString(TEXT("첫 구역 끝 (프로토타입은 여기까지)"));
+		}
+
+		// 무너진 벽.
 		Builder.AddBox(FVector(RuinsCenter.X + 1200.0, 900.0, DaisTopZ + 150.0), FVector(600.0, 60.0, 300.0),
 			FRotator(0.0, 25.0, 0.0), TEXT("Ruins_Wall_A"), TEXT("Greybox/Ruins"));
 		Builder.AddBox(FVector(RuinsCenter.X - 300.0, -1300.0, DaisTopZ + 100.0), FVector(700.0, 60.0, 200.0),
@@ -504,7 +525,10 @@ namespace IsekaiGreybox
 			Lines.Emplace(TEXT(""), TEXT("손을 앞으로 뻗어 봐라. ...역시, 마력이 흐른다. 저쪽 기둥에 쏴 봐라. (마우스 왼쪽)"));
 			Lines.Emplace(TEXT(""), TEXT("동쪽 고갯길 너머 폐허에서 며칠 전부터 돌이 하늘로 떠오르고 있다. 네가 나타난 바로 그날부터다."));
 			Lines.Emplace(TEXT(""), TEXT("등불을 따라가면 닿는다. 가는 길에 짐승이 나오니 조심해라."));
-			Builder.AddNPC(FVector(700.0, 450.0, 0.0), StartLocation, TEXT("떠돌이 마법사"), Lines);
+			if (AIsekaiNPC* Mage = Builder.AddNPC(FVector(700.0, 450.0, 0.0), StartLocation, TEXT("떠돌이 마법사"), Lines))
+			{
+				Mage->ObjectiveAfterTalk = FText::FromString(TEXT("등불을 따라 동쪽 폐허로 가자"));
+			}
 		}
 		{
 			TArray<TPair<FString, FString>> Lines;
@@ -512,6 +536,13 @@ namespace IsekaiGreybox
 			Lines.Emplace(TEXT(""), TEXT("그래도 가겠다면 하나만 기억해. 놈들이 몸을 부풀리면 바로 뒤로 물러나. 그 직후가 빈틈이야."));
 			Builder.AddNPC(FVector(50.0 * Meter, 600.0, 0.0), FVector(40.0 * Meter, 0.0, 0.0), TEXT("마을 주민"), Lines);
 		}
+
+		// 모닥불. 쉬면 회복하고, 쓰러졌을 때 여기로 돌아온다.
+		// 첫 조우 직전과, 마지막 조우 직전에 하나씩 둔다.
+		Builder.Spawn<AIsekaiCampfire>(Path[3] + FVector(1500.0, 0.0, 15.0), FRotator::ZeroRotator,
+			TEXT("Campfire_Forest"), TEXT("Greybox/Gameplay"));
+		Builder.Spawn<AIsekaiCampfire>(FVector(640.0 * Meter, 3600.0, HighlandZ + 15.0), FRotator::ZeroRotator,
+			TEXT("Campfire_Highland"), TEXT("Greybox/Gameplay"));
 
 		// 마법 연습용 허수아비.
 		for (int32 Index = 0; Index < 3; ++Index)

@@ -10,13 +10,16 @@ class UInputMappingContext;
 class UIsekaiDialogueComponent;
 class UIsekaiHealthComponent;
 class UIsekaiInteractionComponent;
+class UIsekaiObjectiveComponent;
+class UPointLightComponent;
 class UIsekaiSpellComponent;
 struct FInputActionValue;
 
 /**
  * 1인칭 플레이어 캐릭터.
  * 입력 어셋이 아직 없으므로 키 매핑을 코드에서 직접 만든다.
- * WASD 이동, 마우스 시점, Space 점프, Shift 달리기, E 상호작용, 마우스 왼쪽 공격 마법.
+ * WASD 이동, 마우스 시점, Space 점프, Shift 달리기, E 상호작용,
+ * 마우스 왼쪽 공격 마법, 마우스 오른쪽 순간 가속, F 빛.
  */
 UCLASS()
 class ISEKAI_API AIsekaiCharacter : public ACharacter
@@ -37,6 +40,16 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Isekai")
 	UIsekaiHealthComponent* GetHealthComponent() const { return Health; }
+
+	UFUNCTION(BlueprintPure, Category = "Isekai")
+	UIsekaiObjectiveComponent* GetObjectives() const { return Objectives; }
+
+	/** 체력과 마나를 채우고, 쓰러졌을 때 돌아올 자리를 지금 위치로 바꾼다. */
+	UFUNCTION(BlueprintCallable, Category = "Isekai")
+	void Rest();
+
+	/** 마지막으로 맞은 시각 (월드 시간, 초). 맞은 적이 없으면 아주 작은 값. */
+	float GetLastDamageTime() const { return LastDamageTime; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed = 300.f;
@@ -64,6 +77,13 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UIsekaiHealthComponent> Health;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UIsekaiObjectiveComponent> Objectives;
+
+	/** 빛 마법. 평소에는 꺼져 있다. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UPointLightComponent> SpellLight;
+
 private:
 	void BuildDefaultInput();
 
@@ -71,7 +91,11 @@ private:
 	UFUNCTION()
 	void HandleDied(AActor* Killer);
 
+	UFUNCTION()
+	void HandleHealthChanged(float NewHealth, float Delta);
+
 	FTransform RespawnTransform;
+	float LastDamageTime = -1000.f;
 
 	bool IsInDialogue() const;
 
@@ -82,6 +106,8 @@ private:
 	void OnSprintCompleted();
 	void OnInteract();
 	void OnCastAttack();
+	void OnCastDash();
+	void OnToggleLight();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> MappingContext;
@@ -103,4 +129,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> CastAttackAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> CastDashAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ToggleLightAction;
 };

@@ -1,5 +1,8 @@
 ﻿#include "Dialogue/IsekaiDialogueComponent.h"
 
+#include "Dialogue/IsekaiObjectiveComponent.h"
+#include "GameFramework/Actor.h"
+
 UIsekaiDialogueComponent::UIsekaiDialogueComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
@@ -38,6 +41,16 @@ void UIsekaiDialogueComponent::EndDialogue()
 
 	Lines.Reset();
 	CurrentIndex = INDEX_NONE;
+
+	if (!PendingObjective.IsEmpty())
+	{
+		UIsekaiObjectiveComponent* Objectives = GetOwner() ? GetOwner()->FindComponentByClass<UIsekaiObjectiveComponent>() : nullptr;
+		if (Objectives)
+		{
+			Objectives->SetObjective(PendingObjective);
+		}
+		PendingObjective = FText::GetEmpty();
+	}
 
 	if (bWasActive)
 	{

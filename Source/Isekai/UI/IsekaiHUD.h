@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Styling/SlateColor.h"
 #include "IsekaiHUD.generated.h"
 
 class AIsekaiCharacter;
@@ -21,6 +22,10 @@ public:
 	FText GetClockText();
 	FText GetManaText() const;
 	FText GetHealthText() const;
+	FText GetObjectiveText() const;
+
+	/** 맞은 직후 잠깐 화면을 붉게 덮는 색. 평소에는 투명. */
+	FSlateColor GetDamageFlashColor() const;
 	FText GetPromptText() const;
 	FText GetDialogueSpeaker() const;
 	FText GetDialogueText() const;

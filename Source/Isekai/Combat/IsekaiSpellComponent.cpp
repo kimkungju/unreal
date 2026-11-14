@@ -2,6 +2,7 @@
 
 #include "Combat/IsekaiSpellProjectile.h"
 #include "Engine/World.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/Pawn.h"
 
 UIsekaiSpellComponent::UIsekaiSpellComponent()
@@ -22,6 +23,7 @@ void UIsekaiSpellComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 
 	Mana = FMath::Min(MaxMana, Mana + ManaRegenPerSecond * DeltaTime);
 	CooldownRemaining = FMath::Max(0.f, CooldownRemaining - DeltaTime);
+	DashCooldownRemaining = FMath::Max(0.f, DashCooldownRemaining - DeltaTime);
 }
 
 bool UIsekaiSpellComponent::CastAttack()
@@ -57,5 +59,38 @@ bool UIsekaiSpellComponent::CastAttack()
 
 	Mana -= AttackManaCost;
 	CooldownRemaining = AttackCooldown;
+	return true;
+}
+
+bool UIsekaiSpellComponent::TrySpendMana(float Amount)
+{
+	if (Mana < Amount)
+	{
+		return false;
+	}
+
+	Mana -= Amount;
+	return true;
+}
+
+bool UIsekaiSpellComponent::CastDash()
+{
+	ACharacter* Caster = Cast<ACharacter>(GetOwner());
+	if (!Caster || DashCooldownRemaining > 0.f || Mana < DashManaCost)
+	{
+		return false;
+	}
+
+	FVector Direction = Caster->GetLastMovementInputVector();
+	Direction.Z = 0.0;
+	if (!Direction.Normalize())
+	{
+		Direction = Caster->GetActorForwardVector();
+	}
+
+	Caster->LaunchCharacter(Direction * DashSpeed + FVector(0.f, 0.f, DashLift), true, true);
+
+	Mana -= DashManaCost;
+	DashCooldownRemaining = DashCooldown;
 	return true;
 }

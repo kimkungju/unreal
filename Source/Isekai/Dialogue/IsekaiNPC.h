@@ -32,6 +32,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC")
 	TArray<FIsekaiDialogueLine> Lines;
 
+	/** 비어 있지 않으면, 대화가 끝났을 때 목표가 이 내용으로 바뀐다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC")
+	FText ObjectiveAfterTalk;
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Placeholder;

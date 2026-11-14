@@ -51,5 +51,8 @@ void AIsekaiNPC::Interact_Implementation(AActor* Interactor)
 		}
 	}
 
-	Dialogue->StartDialogue(Resolved);
+	if (Dialogue->StartDialogue(Resolved))
+	{
+		Dialogue->SetObjectiveOnEnd(ObjectiveAfterTalk);
+	}
 }

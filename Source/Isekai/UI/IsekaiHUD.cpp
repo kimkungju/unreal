@@ -3,6 +3,7 @@
 #include "Combat/IsekaiHealthComponent.h"
 #include "Combat/IsekaiSpellComponent.h"
 #include "Dialogue/IsekaiDialogueComponent.h"
+#include "Dialogue/IsekaiObjectiveComponent.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -10,6 +11,7 @@
 #include "Player/IsekaiCharacter.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Colors/SColorBlock.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -36,11 +38,54 @@ void AIsekaiHUD::BeginPlay()
 	const FSlateColor ManaColor(FLinearColor(0.5f, 0.8f, 1.f));
 	const FSlateColor HealthColor(FLinearColor(1.f, 0.45f, 0.4f));
 	const FSlateColor SpeakerColor(FLinearColor(1.f, 0.85f, 0.5f));
+	const FSlateColor HintColor(FLinearColor(1.f, 1.f, 1.f, 0.7f));
 	const FVector2D Shadow(1.f, 1.f);
 
 	TWeakObjectPtr<AIsekaiHUD> WeakThis(this);
 
 	TSharedRef<SOverlay> Overlay = SNew(SOverlay)
+
+		// 맞았을 때 화면을 덮는 붉은 막
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		[
+			SNew(SImage)
+			.Image(FCoreStyle::Get().GetBrush("WhiteBrush"))
+			.ColorAndOpacity_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetDamageFlashColor() : FSlateColor(FLinearColor::Transparent);
+			})
+		]
+
+		// 목표
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Top)
+		.Padding(24.f)
+		[
+			SNew(STextBlock)
+			.Font(BodyFont)
+			.ColorAndOpacity(SpeakerColor)
+			.ShadowOffset(Shadow)
+			.Text_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetObjectiveText() : FText::GetEmpty();
+			})
+		]
+
+		// 조작 안내
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Bottom)
+		.Padding(24.f)
+		[
+			SNew(STextBlock)
+			.Font(HintFont)
+			.ColorAndOpacity(HintColor)
+			.ShadowOffset(Shadow)
+			.Text(FText::FromString(TEXT("좌클릭 마법탄   우클릭 순간 가속   F 빛   E 상호작용   Shift 달리기")))
+		]
 
 		// 조준점
 		+ SOverlay::Slot()
@@ -250,6 +295,27 @@ FText AIsekaiHUD::GetHealthText() const
 
 	const UIsekaiHealthComponent* HealthComponent = Character->GetHealthComponent();
 	return FText::FromString(FString::Printf(TEXT("HP %.0f / %.0f"), HealthComponent->GetHealth(), HealthComponent->MaxHealth));
+}
+
+FText AIsekaiHUD::GetObjectiveText() const
+{
+	const AIsekaiCharacter* Character = GetCharacter();
+	return Character ? Character->GetObjectives()->GetObjective() : FText::GetEmpty();
+}
+
+FSlateColor AIsekaiHUD::GetDamageFlashColor() const
+{
+	const AIsekaiCharacter* Character = GetCharacter();
+	const UWorld* World = GetWorld();
+	if (!Character || !World)
+	{
+		return FSlateColor(FLinearColor::Transparent);
+	}
+
+	// 맞은 순간 가장 진하고 0.5초에 걸쳐 사라진다.
+	const float Elapsed = World->GetTimeSeconds() - Character->GetLastDamageTime();
+	const float Strength = FMath::Clamp(1.f - Elapsed / 0.5f, 0.f, 1.f);
+	return FSlateColor(FLinearColor(0.8f, 0.f, 0.f, 0.4f * Strength));
 }
 
 FText AIsekaiHUD::GetPromptText() const
