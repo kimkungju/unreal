@@ -8,12 +8,13 @@ class UCameraComponent;
 class UInputAction;
 class UInputMappingContext;
 class UIsekaiInteractionComponent;
+class UIsekaiSpellComponent;
 struct FInputActionValue;
 
 /**
  * 1인칭 플레이어 캐릭터.
  * 입력 어셋이 아직 없으므로 키 매핑을 코드에서 직접 만든다.
- * WASD 이동, 마우스 시점, Space 점프, Shift 달리기, E 상호작용.
+ * WASD 이동, 마우스 시점, Space 점프, Shift 달리기, E 상호작용, 마우스 왼쪽 공격 마법.
  */
 UCLASS()
 class ISEKAI_API AIsekaiCharacter : public ACharacter
@@ -25,6 +26,9 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Isekai")
 	UIsekaiInteractionComponent* GetInteraction() const { return Interaction; }
+
+	UFUNCTION(BlueprintPure, Category = "Isekai")
+	UIsekaiSpellComponent* GetSpells() const { return Spells; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float WalkSpeed = 300.f;
@@ -43,6 +47,9 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UIsekaiInteractionComponent> Interaction;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UIsekaiSpellComponent> Spells;
+
 private:
 	void BuildDefaultInput();
 
@@ -51,6 +58,7 @@ private:
 	void OnSprintStarted();
 	void OnSprintCompleted();
 	void OnInteract();
+	void OnCastAttack();
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> MappingContext;
@@ -69,4 +77,7 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> InteractAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> CastAttackAction;
 };

@@ -1,6 +1,7 @@
 ﻿#include "Player/IsekaiCharacter.h"
 
 #include "Camera/CameraComponent.h"
+#include "Combat/IsekaiSpellComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "EnhancedInputComponent.h"
@@ -23,6 +24,7 @@ AIsekaiCharacter::AIsekaiCharacter()
 	Camera->bUsePawnControlRotation = true;
 
 	Interaction = CreateDefaultSubobject<UIsekaiInteractionComponent>(TEXT("Interaction"));
+	Spells = CreateDefaultSubobject<UIsekaiSpellComponent>(TEXT("Spells"));
 }
 
 void AIsekaiCharacter::BeginPlay()
@@ -50,6 +52,7 @@ void AIsekaiCharacter::BuildDefaultInput()
 	JumpAction = MakeAction(TEXT("IA_Jump"), EInputActionValueType::Boolean);
 	SprintAction = MakeAction(TEXT("IA_Sprint"), EInputActionValueType::Boolean);
 	InteractAction = MakeAction(TEXT("IA_Interact"), EInputActionValueType::Boolean);
+	CastAttackAction = MakeAction(TEXT("IA_CastAttack"), EInputActionValueType::Boolean);
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Default"));
 
@@ -84,6 +87,7 @@ void AIsekaiCharacter::BuildDefaultInput()
 	MappingContext->MapKey(JumpAction, EKeys::SpaceBar);
 	MappingContext->MapKey(SprintAction, EKeys::LeftShift);
 	MappingContext->MapKey(InteractAction, EKeys::E);
+	MappingContext->MapKey(CastAttackAction, EKeys::LeftMouseButton);
 }
 
 void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -105,6 +109,7 @@ void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	Input->BindAction(SprintAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnSprintStarted);
 	Input->BindAction(SprintAction, ETriggerEvent::Completed, this, &AIsekaiCharacter::OnSprintCompleted);
 	Input->BindAction(InteractAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnInteract);
+	Input->BindAction(CastAttackAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnCastAttack);
 }
 
 void AIsekaiCharacter::PawnClientRestart()
@@ -153,4 +158,9 @@ void AIsekaiCharacter::OnSprintCompleted()
 void AIsekaiCharacter::OnInteract()
 {
 	Interaction->TryInteract();
+}
+
+void AIsekaiCharacter::OnCastAttack()
+{
+	Spells->CastAttack();
 }

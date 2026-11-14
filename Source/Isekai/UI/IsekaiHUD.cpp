@@ -1,5 +1,6 @@
 ﻿#include "UI/IsekaiHUD.h"
 
+#include "Combat/IsekaiSpellComponent.h"
 #include "Engine/Canvas.h"
 #include "EngineUtils.h"
 #include "Interaction/IsekaiInteractionComponent.h"
@@ -35,6 +36,14 @@ void AIsekaiHUD::DrawHUD()
 			GetTextSize(Line, Width, Height, nullptr, Scale);
 			DrawText(Line, FLinearColor::White, CenterX - Width * 0.5f, CenterY + 40.f, nullptr, Scale);
 		}
+	}
+
+	// 마나
+	if (const AIsekaiCharacter* Character = Cast<AIsekaiCharacter>(GetOwningPawn()))
+	{
+		const UIsekaiSpellComponent* Spells = Character->GetSpells();
+		const FString Line = FString::Printf(TEXT("MP %.0f / %.0f"), Spells->GetMana(), Spells->MaxMana);
+		DrawText(Line, FLinearColor(0.5f, 0.8f, 1.f), 24.f, Canvas->ClipY - 60.f, nullptr, 1.5f);
 	}
 
 	// 시계
