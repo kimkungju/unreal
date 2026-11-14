@@ -1,4 +1,4 @@
-#include "Player/IsekaiCharacter.h"
+﻿#include "Player/IsekaiCharacter.h"
 
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -93,7 +93,7 @@ void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	BuildDefaultInput();
 
 	UEnhancedInputComponent* Input = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-	if (!ensureMsgf(Input, TEXT("Enhanced Input이 꺼져 있다. Config/DefaultInput.ini를 확인할 것.")))
+	if (!ensureMsgf(Input, TEXT("Enhanced Input is disabled. Check Config/DefaultInput.ini.")))
 	{
 		return;
 	}

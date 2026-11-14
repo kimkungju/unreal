@@ -1,4 +1,4 @@
-#include "Interaction/IsekaiInteractionComponent.h"
+﻿#include "Interaction/IsekaiInteractionComponent.h"
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
