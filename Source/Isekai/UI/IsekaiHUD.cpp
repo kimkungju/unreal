@@ -1,5 +1,6 @@
 ﻿#include "UI/IsekaiHUD.h"
 
+#include "Combat/IsekaiHealthComponent.h"
 #include "Combat/IsekaiSpellComponent.h"
 #include "Dialogue/IsekaiDialogueComponent.h"
 #include "Engine/GameViewportClient.h"
@@ -33,6 +34,7 @@ void AIsekaiHUD::BeginPlay()
 
 	const FSlateColor White(FLinearColor::White);
 	const FSlateColor ManaColor(FLinearColor(0.5f, 0.8f, 1.f));
+	const FSlateColor HealthColor(FLinearColor(1.f, 0.45f, 0.4f));
 	const FSlateColor SpeakerColor(FLinearColor(1.f, 0.85f, 0.5f));
 	const FVector2D Shadow(1.f, 1.f);
 
@@ -74,20 +76,39 @@ void AIsekaiHUD::BeginPlay()
 			})
 		]
 
-		// 마나
+		// 체력과 마나
 		+ SOverlay::Slot()
 		.HAlign(HAlign_Left)
 		.VAlign(VAlign_Bottom)
 		.Padding(24.f)
 		[
-			SNew(STextBlock)
-			.Font(BodyFont)
-			.ColorAndOpacity(ManaColor)
-			.ShadowOffset(Shadow)
-			.Text_Lambda([WeakThis]()
-			{
-				return WeakThis.IsValid() ? WeakThis->GetManaText() : FText::GetEmpty();
-			})
+			SNew(SVerticalBox)
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(STextBlock)
+				.Font(BodyFont)
+				.ColorAndOpacity(HealthColor)
+				.ShadowOffset(Shadow)
+				.Text_Lambda([WeakThis]()
+				{
+					return WeakThis.IsValid() ? WeakThis->GetHealthText() : FText::GetEmpty();
+				})
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(STextBlock)
+				.Font(BodyFont)
+				.ColorAndOpacity(ManaColor)
+				.ShadowOffset(Shadow)
+				.Text_Lambda([WeakThis]()
+				{
+					return WeakThis.IsValid() ? WeakThis->GetManaText() : FText::GetEmpty();
+				})
+			]
 		]
 
 		// 상호작용 안내 (조준점 조금 아래)
@@ -217,6 +238,18 @@ FText AIsekaiHUD::GetManaText() const
 
 	const UIsekaiSpellComponent* Spells = Character->GetSpells();
 	return FText::FromString(FString::Printf(TEXT("MP %.0f / %.0f"), Spells->GetMana(), Spells->MaxMana));
+}
+
+FText AIsekaiHUD::GetHealthText() const
+{
+	const AIsekaiCharacter* Character = GetCharacter();
+	if (!Character)
+	{
+		return FText::GetEmpty();
+	}
+
+	const UIsekaiHealthComponent* HealthComponent = Character->GetHealthComponent();
+	return FText::FromString(FString::Printf(TEXT("HP %.0f / %.0f"), HealthComponent->GetHealth(), HealthComponent->MaxHealth));
 }
 
 FText AIsekaiHUD::GetPromptText() const

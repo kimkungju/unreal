@@ -20,6 +20,7 @@ class ISEKAI_API AIsekaiHUD : public AHUD
 public:
 	FText GetClockText();
 	FText GetManaText() const;
+	FText GetHealthText() const;
 	FText GetPromptText() const;
 	FText GetDialogueSpeaker() const;
 	FText GetDialogueText() const;

@@ -76,7 +76,7 @@ void AIsekaiEnemy::Tick(float DeltaSeconds)
 	StateTime += DeltaSeconds;
 
 	const FVector ToPlayer = PlayerPawn->GetActorLocation() - GetActorLocation();
-	const float Distance = ToPlayer.Size2D();
+	const double Distance = ToPlayer.Size2D();
 	const FVector Direction = ToPlayer.GetSafeNormal2D();
 
 	switch (State)

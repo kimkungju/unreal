@@ -23,8 +23,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 	bool bSpawnTestNPC = true;
 
+	/** 레벨에 적이 하나도 없으면 허수아비 너머 멀리에 2마리를 만든다. 시험용. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bSpawnTestEnemies = true;
+
 private:
 	void SpawnTestDummies();
+	void SpawnTestEnemies();
 	void SpawnTestNPC();
 
 	/** 시작 지점의 위치와 바라보는 방향. 시작 지점이 없으면 원점. */

@@ -1,10 +1,12 @@
 ﻿#include "Player/IsekaiCharacter.h"
 
 #include "Camera/CameraComponent.h"
+#include "Combat/IsekaiHealthComponent.h"
 #include "Combat/IsekaiSpellComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Dialogue/IsekaiDialogueComponent.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/Engine.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -27,12 +29,35 @@ AIsekaiCharacter::AIsekaiCharacter()
 	Interaction = CreateDefaultSubobject<UIsekaiInteractionComponent>(TEXT("Interaction"));
 	Spells = CreateDefaultSubobject<UIsekaiSpellComponent>(TEXT("Spells"));
 	Dialogue = CreateDefaultSubobject<UIsekaiDialogueComponent>(TEXT("Dialogue"));
+	Health = CreateDefaultSubobject<UIsekaiHealthComponent>(TEXT("Health"));
 }
 
 void AIsekaiCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+
+	RespawnTransform = GetActorTransform();
+	Health->OnDied.AddDynamic(this, &AIsekaiCharacter::HandleDied);
+}
+
+void AIsekaiCharacter::HandleDied(AActor* Killer)
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 3.f, FColor::Red, TEXT("You were defeated. Back to the start."));
+	}
+
+	Dialogue->EndDialogue();
+	GetCharacterMovement()->StopMovementImmediately();
+	TeleportTo(RespawnTransform.GetLocation(), RespawnTransform.Rotator());
+
+	if (AController* MyController = GetController())
+	{
+		MyController->SetControlRotation(RespawnTransform.Rotator());
+	}
+
+	Health->ResetHealth();
 }
 
 void AIsekaiCharacter::BuildDefaultInput()

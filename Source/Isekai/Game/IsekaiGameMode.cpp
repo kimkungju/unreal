@@ -1,5 +1,6 @@
 ﻿#include "Game/IsekaiGameMode.h"
 
+#include "Combat/IsekaiEnemy.h"
 #include "Combat/IsekaiTargetDummy.h"
 #include "Dialogue/IsekaiNPC.h"
 #include "EngineUtils.h"
@@ -33,6 +34,11 @@ void AIsekaiGameMode::BeginPlay()
 	if (bSpawnTestNPC)
 	{
 		SpawnTestNPC();
+	}
+
+	if (bSpawnTestEnemies)
+	{
+		SpawnTestEnemies();
 	}
 }
 
@@ -89,6 +95,38 @@ void AIsekaiGameMode::SpawnTestDummies()
 		FActorSpawnParameters Params;
 		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 		World->SpawnActor<AIsekaiTargetDummy>(AIsekaiTargetDummy::StaticClass(), Location, Facing, Params);
+	}
+}
+
+void AIsekaiGameMode::SpawnTestEnemies()
+{
+	UWorld* World = GetWorld();
+
+	const TActorIterator<AIsekaiEnemy> ExistingEnemy(World);
+	if (ExistingEnemy)
+	{
+		return;
+	}
+
+	FVector Origin;
+	FRotator Facing;
+	GetStartTransform(Origin, Facing);
+
+	const FVector Forward = Facing.Vector();
+	const FVector Right = FRotationMatrix(Facing).GetUnitAxis(EAxis::Y);
+
+	// 시작 지점에서는 감지되지 않는 거리(25m)에 둔다. 다가가야 싸움이 시작된다.
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		const float Side = (Index == 0) ? -250.f : 250.f;
+		FVector Location = Origin + Forward * 2500.f + Right * Side;
+		Location.Z = FindGroundZ(Location) + 90.f;
+
+		const FRotator LookAtStart(0.f, (Origin - Location).Rotation().Yaw, 0.f);
+
+		FActorSpawnParameters Params;
+		Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		World->SpawnActor<AIsekaiEnemy>(AIsekaiEnemy::StaticClass(), Location, LookAtStart, Params);
 	}
 }
 
