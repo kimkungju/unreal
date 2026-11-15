@@ -13,10 +13,12 @@ class AIsekaiTimeOfDay;
 class UAudioComponent;
 
 /**
- * 프롤로그(약 3분)의 진행을 처음부터 끝까지 맡는다.
+ * 이야기 진행을 처음부터 끝까지 맡는다. 지금은 프롤로그와 1장이 들어 있다.
  *
- * 검은 화면의 독백 → 하늘에서 추락 → 폐허에 착지 → 마법사와 대화 →
+ * 프롤로그(약 3분): 검은 화면의 독백 → 하늘에서 추락 → 폐허에 착지 → 마법사와 대화 →
  * 첫 마법 → 짐승 무리 → 큰 짐승 → 이상현상 폭주 → 대화 → 제목.
+ *
+ * 1장(약 3분): 마법사를 따라 걷기 → 고갯길 매복(원거리 적) → 숲길 → 야영지에서 선택 → 장 제목.
  *
  * 레벨에 하나 놓으면 게임 시작과 함께 진행된다. 없으면 평소처럼 자유롭게 돌아다닌다.
  */
@@ -47,6 +49,21 @@ public:
 	/** 끄면 독백을 건너뛰고 바로 추락부터 시작한다. 반복 시험용. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Prologue")
 	bool bPlayOpeningNarration = true;
+
+	/** 켜면 프롤로그를 통째로 건너뛰고 1장부터 시작한다. 반복 시험용. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Prologue")
+	bool bSkipPrologue = false;
+
+	/** 1장에서 마법사가 걷는 길. 폐허 앞에서 숲의 야영지까지, 순서대로. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chapter1")
+	TArray<FVector> RouteToCamp;
+
+	/** RouteToCamp에서 고갯길 꼭대기와 바닥에 해당하는 칸 번호. 그 사이에서 매복이 터진다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chapter1")
+	int32 PassTopIndex = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Chapter1")
+	int32 PassBottomIndex = 3;
 
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -79,6 +96,15 @@ private:
 		TitleIn,
 		TitleHold,
 		TitleOut,
+		EscortToPass,
+		Ambush,
+		EscortToCamp,
+		CampTurn,
+		CampQuestion,
+		CampReply,
+		ChapterFade,
+		ChapterTitle,
+		ChapterEnd,
 		Done
 	};
 
@@ -89,6 +115,17 @@ private:
 	void StartCombat();
 	void StartSurge();
 	void Finish();
+
+	void StartChapter1();
+	void StartAmbush();
+	void StartCamp();
+	void FinishChapter1();
+
+	/** 마법사를 길 따라 걷게 하고, 플레이어가 뒤처지면 기다리게 한다. 끝까지 가서 플레이어도 도착하면 true. */
+	bool UpdateEscort(float RealDelta);
+	void OnWaypointReached(int32 Index);
+	void Bark(const TCHAR* Text, float Duration = 4.f);
+	AIsekaiEnemy* SpawnEnemyAt(const FVector& Location, const FVector& LookAt);
 
 	AIsekaiEnemy* SpawnEnemy(float AngleDegrees);
 	int32 CountLivingEnemies() const;
@@ -115,6 +152,10 @@ private:
 	int32 WaveSpawned = 0;
 	bool bAttackCastSeen = false;
 	bool bDashCastSeen = false;
+
+	int32 RouteIndex = 0;
+	float EscortWaitTime = 0.f;
+	FText MageName;
 
 	TWeakObjectPtr<AIsekaiCharacter> Player;
 	TWeakObjectPtr<AIsekaiHUD> HUD;

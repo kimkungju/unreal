@@ -3,11 +3,19 @@
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "UObject/ConstructorHelpers.h"
 
 AIsekaiNPC::AIsekaiNPC()
 {
-	PrimaryActorTick.bCanEverTick = false;
+	PrimaryActorTick.bCanEverTick = true;
+
+	// 걸으려면 움직임을 처리해 줄 컨트롤러가 필요하다.
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+	bUseControllerRotationYaw = false;
+	GetCharacterMovement()->bOrientRotationToMovement = true;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 360.f, 0.f);
+	GetCharacterMovement()->bRunPhysicsWithNoController = true;
 
 	// 캡슐의 기본 설정은 시선 판정(Visibility)을 통과시킨다. 바라봤을 때 잡히도록 막는다.
 	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
@@ -22,6 +30,37 @@ AIsekaiNPC::AIsekaiNPC()
 	{
 		Placeholder->SetStaticMesh(CylinderMesh.Object);
 	}
+}
+
+void AIsekaiNPC::BeginPlay()
+{
+	Super::BeginPlay();
+	GetCharacterMovement()->MaxWalkSpeed = WalkSpeed;
+}
+
+void AIsekaiNPC::WalkTo(const FVector& Destination)
+{
+	WalkDestination = Destination;
+	bHasDestination = true;
+}
+
+void AIsekaiNPC::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (!bHasDestination)
+	{
+		return;
+	}
+
+	const FVector ToDestination = WalkDestination - GetActorLocation();
+	if (ToDestination.Size2D() < 120.0)
+	{
+		bHasDestination = false;
+		return;
+	}
+
+	AddMovementInput(ToDestination.GetSafeNormal2D());
 }
 
 FText AIsekaiNPC::GetInteractionPrompt_Implementation() const

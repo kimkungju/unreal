@@ -50,6 +50,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Isekai")
 	void Rest();
 
+	/** 이야기에서 일어난 일을 기록해 두는 표시. 예: 출신을 사실대로 말했는지. */
+	UFUNCTION(BlueprintCallable, Category = "Isekai")
+	void SetStoryFlag(FName Flag) { StoryFlags.Add(Flag); }
+
+	UFUNCTION(BlueprintPure, Category = "Isekai")
+	bool HasStoryFlag(FName Flag) const { return StoryFlags.Contains(Flag); }
+
 	/** 화면을 흔든다. 1이 강한 충격. 이미 더 세게 흔들리고 있으면 무시된다. */
 	UFUNCTION(BlueprintCallable, Category = "Isekai")
 	void AddCameraShake(float Strength);
@@ -137,6 +144,11 @@ private:
 	void OnCastAttack();
 	void OnCastDash();
 	void OnToggleLight();
+	void OnChoice1();
+	void OnChoice2();
+	void OnChoice3();
+
+	TSet<FName> StoryFlags;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> MappingContext;
@@ -164,4 +176,13 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> ToggleLightAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> Choice1Action;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> Choice2Action;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> Choice3Action;
 };

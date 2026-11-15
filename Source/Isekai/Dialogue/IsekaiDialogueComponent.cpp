@@ -26,7 +26,8 @@ bool UIsekaiDialogueComponent::StartDialogue(const TArray<FIsekaiDialogueLine>& 
 
 void UIsekaiDialogueComponent::Advance()
 {
-	if (!IsDialogueActive())
+	// 선택을 기다리는 대사는 E로 넘어가지 않는다.
+	if (!IsDialogueActive() || IsWaitingForChoice())
 	{
 		return;
 	}
@@ -65,4 +66,26 @@ void UIsekaiDialogueComponent::EndDialogue()
 FIsekaiDialogueLine UIsekaiDialogueComponent::GetCurrentLine() const
 {
 	return IsDialogueActive() ? Lines[CurrentIndex] : FIsekaiDialogueLine();
+}
+
+bool UIsekaiDialogueComponent::IsWaitingForChoice() const
+{
+	return IsDialogueActive() && Lines[CurrentIndex].Choices.Num() > 0;
+}
+
+void UIsekaiDialogueComponent::Choose(int32 ChoiceIndex)
+{
+	if (!IsWaitingForChoice() || !Lines[CurrentIndex].Choices.IsValidIndex(ChoiceIndex))
+	{
+		return;
+	}
+
+	LastChoice = ChoiceIndex;
+
+	++CurrentIndex;
+	IsekaiAudio::Play(this, TEXT("SFX_Tick"));
+	if (!Lines.IsValidIndex(CurrentIndex))
+	{
+		EndDialogue();
+	}
 }

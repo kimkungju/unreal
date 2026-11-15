@@ -24,6 +24,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell")
 	float Damage = 25.f;
 
+	/** 적이 쏘는 탄으로 바꾼다. 느리고 붉어서 보고 피할 수 있다. 만든 직후에 부른다. */
+	UFUNCTION(BlueprintCallable, Category = "Spell")
+	void ConfigureAsEnemyShot(float Speed, float InDamage);
+
 protected:
 	virtual void BeginPlay() override;
 

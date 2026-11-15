@@ -532,6 +532,18 @@ namespace IsekaiGreybox
 				Director->Mage = MageActor;
 				Director->Anomaly = AnomalyActor;
 				Director->DaisCenter = DaisCenter;
+
+				// 1장에서 마법사가 걷는 길: 폐허 앞에서 고갯길을 내려가 숲의 모닥불까지.
+				Director->RouteToCamp.Reset();
+				Director->RouteToCamp.Add(Path[9]);
+				Director->RouteToCamp.Add(Path[8]);
+				Director->RouteToCamp.Add(Path[7]);
+				Director->RouteToCamp.Add(Path[6]);
+				Director->RouteToCamp.Add(Path[5]);
+				Director->RouteToCamp.Add(Path[4]);
+				Director->RouteToCamp.Add(Path[3] + FVector(1800.0, 350.0, 0.0));
+				Director->PassTopIndex = 2;
+				Director->PassBottomIndex = 3;
 			}
 		}
 
@@ -557,12 +569,7 @@ namespace IsekaiGreybox
 				FString::Printf(TEXT("Dummy_%02d"), Index), TEXT("Greybox/Gameplay"));
 		}
 
-		// 조우 1: 숲 공터의 둘.
-		Builder.AddEnemy(Path[4] + FVector(800.0, 600.0, 0.0), Path[3], 0);
-		Builder.AddEnemy(Path[4] + FVector(1100.0, -500.0, 0.0), Path[3], 1);
-
-		// 조우 2: 고갯길을 다 올랐을 때 기다리는 하나.
-		Builder.AddEnemy(FVector(HighlandStartX + 2200.0, 300.0, HighlandZ), Path[7], 2);
+		// 적은 레벨에 놓지 않는다. 이야기 진행이 장면에 맞춰 직접 내보낸다.
 
 		// 폐허의 짐승은 프롤로그 진행에 맞춰 실행 중에 나타난다. 여기서는 놓지 않는다.
 

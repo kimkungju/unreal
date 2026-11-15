@@ -155,6 +155,9 @@ void AIsekaiCharacter::BuildDefaultInput()
 	CastAttackAction = MakeAction(TEXT("IA_CastAttack"), EInputActionValueType::Boolean);
 	CastDashAction = MakeAction(TEXT("IA_CastDash"), EInputActionValueType::Boolean);
 	ToggleLightAction = MakeAction(TEXT("IA_ToggleLight"), EInputActionValueType::Boolean);
+	Choice1Action = MakeAction(TEXT("IA_Choice1"), EInputActionValueType::Boolean);
+	Choice2Action = MakeAction(TEXT("IA_Choice2"), EInputActionValueType::Boolean);
+	Choice3Action = MakeAction(TEXT("IA_Choice3"), EInputActionValueType::Boolean);
 
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Default"));
 
@@ -192,6 +195,9 @@ void AIsekaiCharacter::BuildDefaultInput()
 	MappingContext->MapKey(CastAttackAction, EKeys::LeftMouseButton);
 	MappingContext->MapKey(CastDashAction, EKeys::RightMouseButton);
 	MappingContext->MapKey(ToggleLightAction, EKeys::F);
+	MappingContext->MapKey(Choice1Action, EKeys::One);
+	MappingContext->MapKey(Choice2Action, EKeys::Two);
+	MappingContext->MapKey(Choice3Action, EKeys::Three);
 }
 
 void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -216,6 +222,9 @@ void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	Input->BindAction(CastAttackAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnCastAttack);
 	Input->BindAction(CastDashAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnCastDash);
 	Input->BindAction(ToggleLightAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnToggleLight);
+	Input->BindAction(Choice1Action, ETriggerEvent::Started, this, &AIsekaiCharacter::OnChoice1);
+	Input->BindAction(Choice2Action, ETriggerEvent::Started, this, &AIsekaiCharacter::OnChoice2);
+	Input->BindAction(Choice3Action, ETriggerEvent::Started, this, &AIsekaiCharacter::OnChoice3);
 }
 
 void AIsekaiCharacter::PawnClientRestart()
@@ -334,4 +343,19 @@ void AIsekaiCharacter::OnToggleLight()
 	{
 		SpellLight->SetVisibility(true);
 	}
+}
+
+void AIsekaiCharacter::OnChoice1()
+{
+	Dialogue->Choose(0);
+}
+
+void AIsekaiCharacter::OnChoice2()
+{
+	Dialogue->Choose(1);
+}
+
+void AIsekaiCharacter::OnChoice3()
+{
+	Dialogue->Choose(2);
 }

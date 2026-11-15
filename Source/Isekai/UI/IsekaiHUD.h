@@ -41,6 +41,9 @@ public:
 	/** 큰 제목과 부제. 빈 문구를 주면 서서히 사라진다. */
 	void SetTitle(const FText& InTitle, const FText& InSubtitle);
 
+	/** 화면 아래에 잠깐 뜨는 한마디. 조작을 막지 않는다. 걸으면서 나누는 말에 쓴다. */
+	void ShowBark(const FText& InSpeaker, const FText& InText, float Duration);
+
 	/** 위아래 검은 띠 */
 	void SetLetterbox(bool bInEnabled) { bLetterbox = bInEnabled; }
 
@@ -56,6 +59,10 @@ public:
 	FText GetPromptText() const;
 	FText GetDialogueSpeaker() const;
 	FText GetDialogueText() const;
+	FText GetDialogueChoicesText() const;
+	FText GetDialogueHintText() const;
+	FText GetBarkText() const { return Bark; }
+	FSlateColor GetBarkColor() const;
 	bool IsDialogueActive() const;
 	bool IsGameplayVisible() const { return bGameplayVisible; }
 
@@ -91,6 +98,9 @@ private:
 	float NarrationTarget = 0.f;
 
 	FText Hint;
+
+	FText Bark;
+	float BarkTimeLeft = 0.f;
 
 	FText TitleText;
 	FText SubtitleText;

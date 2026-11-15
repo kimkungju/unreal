@@ -51,6 +51,7 @@ AIsekaiPrologueDirector::AIsekaiPrologueDirector()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	SetRootComponent(CreateDefaultSubobject<USceneComponent>(TEXT("Root")));
+	MageName = Txt(TEXT("마법사"));
 }
 
 void AIsekaiPrologueDirector::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -119,6 +120,19 @@ void AIsekaiPrologueDirector::Begin()
 	P->GetSpells()->OnAttackCast.AddUObject(this, &AIsekaiPrologueDirector::HandleAttackCast);
 	P->GetSpells()->OnDashCast.AddUObject(this, &AIsekaiPrologueDirector::HandleDashCast);
 
+	if (bSkipPrologue)
+	{
+		// 프롤로그가 끝난 직후의 상태를 흉내 낸다.
+		P->SetActorLocation(DaisCenter + FVector(-900.f, 0.f, 100.f));
+		P->Rest();
+		if (TimeOfDay.IsValid())
+		{
+			TimeOfDay->SetTimeOfDay(15.5f);
+		}
+		Finish();
+		return;
+	}
+
 	// 독백 동안은 하늘 위에 멈춰 둔다.
 	P->GetCharacterMovement()->SetMovementMode(MOVE_None);
 	P->SetActorLocation(DaisCenter + FVector(-300.f, 0.f, FallHeight));
@@ -127,10 +141,10 @@ void AIsekaiPrologueDirector::Begin()
 	H->SetLetterbox(true);
 	H->FadeTo(FLinearColor::Black, 1.f, 0.f);
 
-	// 아침 해가 낮게 뜬 시각에 고정한다.
+	// 오후로 고정한다. 프롤로그가 끝나면 시간이 다시 흐르고, 1장 끝의 야영지에서 해가 진다.
 	if (TimeOfDay.IsValid())
 	{
-		TimeOfDay->SetTimeOfDay(7.f);
+		TimeOfDay->SetTimeOfDay(15.5f);
 		TimeOfDay->bPaused = true;
 	}
 
@@ -236,14 +250,211 @@ void AIsekaiPrologueDirector::Finish()
 	P->bLookLocked = false;
 	P->bCanCastAttack = true;
 	P->bCanCastDash = true;
-	P->GetObjectives()->SetObjective(Txt(TEXT("마법사를 따라 마을로 (다음 구간은 준비 중)")));
-
 	SetMusic(TEXT("MUS_Ambient"), 0.6f, 3.f);
 
 	if (TimeOfDay.IsValid())
 	{
 		TimeOfDay->bPaused = false;
 	}
+
+	StartChapter1();
+}
+
+// ---------- 1장: 고갯길 ----------
+
+void AIsekaiPrologueDirector::Bark(const TCHAR* Text, float Duration)
+{
+	if (HUD.IsValid())
+	{
+		HUD->ShowBark(MageName, Txt(Text), Duration);
+	}
+}
+
+AIsekaiEnemy* AIsekaiPrologueDirector::SpawnEnemyAt(const FVector& Location, const FVector& LookAt)
+{
+	const FRotator Rotation(0.f, (LookAt - Location).Rotation().Yaw, 0.f);
+
+	FActorSpawnParameters Params;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AIsekaiEnemy* Enemy = GetWorld()->SpawnActor<AIsekaiEnemy>(AIsekaiEnemy::StaticClass(), Location, Rotation, Params);
+	if (Enemy)
+	{
+		Enemy->StartChasing();
+		Enemies.Add(Enemy);
+	}
+	return Enemy;
+}
+
+void AIsekaiPrologueDirector::StartChapter1()
+{
+	AIsekaiCharacter* P = Player.Get();
+
+	// 길이 지정되지 않았거나 마법사가 없으면 1장을 진행할 수 없다.
+	if (!Mage || RouteToCamp.Num() == 0)
+	{
+		P->GetObjectives()->SetObjective(Txt(TEXT("자유롭게 둘러보기")));
+		Go(EStep::Done);
+		SetActorTickEnabled(false);
+		return;
+	}
+
+	P->GetObjectives()->SetObjective(Txt(TEXT("마법사를 따라가라")));
+	Bark(TEXT("따라와라. 해가 지기 전에 숲을 지나야 한다."));
+
+	RouteIndex = 0;
+	EscortWaitTime = 0.f;
+	Mage->WalkTo(RouteToCamp[0]);
+
+	Go(EStep::EscortToPass);
+}
+
+bool AIsekaiPrologueDirector::UpdateEscort(float RealDelta)
+{
+	AIsekaiCharacter* P = Player.Get();
+	const double Gap = FVector::Dist2D(P->GetActorLocation(), Mage->GetActorLocation());
+
+	if (RouteIndex >= RouteToCamp.Num())
+	{
+		return Gap < 700.0;
+	}
+
+	// 플레이어가 너무 뒤처지면 멈춰서 기다린다.
+	if (Gap > 1400.0)
+	{
+		Mage->StopWalking();
+		EscortWaitTime += RealDelta;
+		if (EscortWaitTime > 7.f)
+		{
+			Bark(TEXT("이쪽이다. 떨어지지 마라."), 3.f);
+			EscortWaitTime = 0.f;
+		}
+		return false;
+	}
+	EscortWaitTime = 0.f;
+
+	if (!Mage->IsWalking())
+	{
+		const double ToWaypoint = FVector::Dist2D(Mage->GetActorLocation(), RouteToCamp[RouteIndex]);
+		if (ToWaypoint < 220.0)
+		{
+			OnWaypointReached(RouteIndex);
+			++RouteIndex;
+		}
+
+		if (RouteIndex < RouteToCamp.Num())
+		{
+			Mage->WalkTo(RouteToCamp[RouteIndex]);
+		}
+	}
+
+	return false;
+}
+
+void AIsekaiPrologueDirector::OnWaypointReached(int32 Index)
+{
+	// 길의 칸마다 한마디씩. 걷는 시간이 비지 않게 한다.
+	if (Index == 0)
+	{
+		Bark(TEXT("저 돌들은 사흘 전부터 뜨기 시작했다. 네가 떨어진 건 오늘이고."), 5.f);
+	}
+	else if (Index == 1)
+	{
+		Bark(TEXT("나는 세라. 변경을 재고 다니는 측량사... 라고 해 두지."), 5.f);
+		MageName = Txt(TEXT("세라"));
+		if (Player.IsValid())
+		{
+			Player->GetObjectives()->SetObjective(Txt(TEXT("세라를 따라가라")));
+		}
+	}
+	else if (Index == 2)
+	{
+		Bark(TEXT("고갯길이다. 좁고, 숨을 데가 없다. 붙어서 와라."), 5.f);
+	}
+	else if (Index == 4)
+	{
+		Bark(TEXT("숲은 등불만 따라가면 된다. 저 등불을 세운 게 우리 같은 사람들이다."), 5.f);
+	}
+	else if (Index == 5)
+	{
+		Bark(TEXT("저기 불 피울 자리가 있다. 오늘은 거기까지다."), 5.f);
+	}
+}
+
+void AIsekaiPrologueDirector::StartAmbush()
+{
+	AIsekaiCharacter* P = Player.Get();
+
+	const FVector Top = RouteToCamp[PassTopIndex];
+	const FVector Bottom = RouteToCamp[PassBottomIndex];
+	const FVector Downhill = (Bottom - Top).GetSafeNormal2D();
+	const FVector Side = FVector::CrossProduct(FVector::UpVector, Downhill);
+
+	Mage->StopWalking();
+	Enemies.Reset();
+
+	// 아래쪽 출구에 쏘는 놈 둘. 좁은 길에서 날아오는 탄을 피해야 한다.
+	const double ShooterOffsets[] = { -250.0, 250.0 };
+	for (const double Offset : ShooterOffsets)
+	{
+		const FVector Location = Bottom + Downhill * 500.0 + Side * Offset + FVector(0.0, 0.0, 95.0);
+		if (AIsekaiEnemy* Shooter = SpawnEnemyAt(Location, Top))
+		{
+			Shooter->MakeRanged();
+		}
+	}
+
+	// 위쪽 입구에 덤비는 놈 둘. 물러날 길을 막는다.
+	const double BrawlerOffsets[] = { -200.0, 200.0 };
+	for (const double Offset : BrawlerOffsets)
+	{
+		const FVector Location = Top - Downhill * 700.0 + Side * Offset + FVector(0.0, 0.0, 95.0);
+		SpawnEnemyAt(Location, Bottom);
+	}
+
+	Bark(TEXT("매복이다! 날아오는 건 피해라!"), 4.f);
+	P->GetObjectives()->SetObjective(Txt(TEXT("매복을 뚫어라")));
+	P->AddCameraShake(0.6f);
+	IsekaiAudio::Play(this, TEXT("SFX_Land"), 0.6f);
+	SetMusic(TEXT("MUS_Combat"), 0.7f, 1.f);
+
+	Go(EStep::Ambush);
+}
+
+void AIsekaiPrologueDirector::StartCamp()
+{
+	AIsekaiCharacter* P = Player.Get();
+	AIsekaiHUD* H = HUD.Get();
+
+	Mage->StopWalking();
+
+	P->bMoveLocked = true;
+	P->bLookLocked = true;
+	P->GetObjectives()->SetObjective(FText::GetEmpty());
+
+	// 야영지에서 쉰다. 쓰러졌을 때 돌아올 자리도 여기로 바뀐다.
+	P->Rest();
+
+	H->SetGameplayVisible(false);
+	H->SetLetterbox(true);
+
+	Go(EStep::CampTurn);
+}
+
+void AIsekaiPrologueDirector::FinishChapter1()
+{
+	AIsekaiCharacter* P = Player.Get();
+	AIsekaiHUD* H = HUD.Get();
+
+	H->FadeTo(FLinearColor::Black, 0.f, 2.f);
+	H->SetLetterbox(false);
+	H->SetGameplayVisible(true);
+
+	P->bMoveLocked = false;
+	P->bLookLocked = false;
+	P->GetObjectives()->SetObjective(Txt(TEXT("다음 구간은 준비 중")));
+
+	SetMusic(TEXT("MUS_Ambient"), 0.6f, 3.f);
 
 	Go(EStep::Done);
 	SetActorTickEnabled(false);
@@ -623,6 +834,125 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 		if (StepTime > 1.4f)
 		{
 			Finish();
+		}
+		break;
+
+	case EStep::EscortToPass:
+	{
+		UpdateEscort(RealDelta);
+
+		// 플레이어가 고갯길 한가운데에 들어서면 매복이 터진다.
+		if (RouteToCamp.IsValidIndex(PassTopIndex) && RouteToCamp.IsValidIndex(PassBottomIndex))
+		{
+			const FVector Middle = (RouteToCamp[PassTopIndex] + RouteToCamp[PassBottomIndex]) * 0.5;
+			if (FVector::Dist2D(P->GetActorLocation(), Middle) < 1200.0)
+			{
+				StartAmbush();
+			}
+		}
+		else
+		{
+			Go(EStep::EscortToCamp);
+		}
+		break;
+	}
+
+	case EStep::Ambush:
+		if (StepTime > 1.f && CountLivingEnemies() == 0)
+		{
+			SetMusic(TEXT("MUS_Ambient"), 0.6f, 2.f);
+			Bark(TEXT("...끝났나. 걸어라. 걸으면서 낫는다."), 4.f);
+			P->GetObjectives()->SetObjective(Txt(TEXT("세라를 따라가라")));
+			Go(EStep::EscortToCamp);
+		}
+		break;
+
+	case EStep::EscortToCamp:
+		if (UpdateEscort(RealDelta))
+		{
+			StartCamp();
+		}
+		break;
+
+	case EStep::CampTurn:
+		LookAtMage(RealDelta);
+		if (StepTime > 1.2f)
+		{
+			TArray<FIsekaiDialogueLine> Lines;
+			Lines.Add(MakeLine(TEXT("세라"), TEXT("앉아라. 불은 내가 본다.")));
+
+			FIsekaiDialogueLine Question = MakeLine(TEXT("세라"), TEXT("이제 말해 봐라. 너, 어디서 왔지?"));
+			Question.Choices.Add(Txt(TEXT("다른 세계에서 왔습니다. 죽었다고 생각했는데, 눈을 뜨니 하늘이었어요.")));
+			Question.Choices.Add(Txt(TEXT("...기억이 나지 않습니다.")));
+			Lines.Add(Question);
+
+			P->GetDialogue()->StartDialogue(Lines);
+			Go(EStep::CampQuestion);
+		}
+		break;
+
+	case EStep::CampQuestion:
+		LookAtMage(RealDelta);
+		if (!P->GetDialogue()->IsDialogueActive())
+		{
+			// 무엇을 골랐는지에 따라 세라의 반응이 달라지고, 기록으로 남는다.
+			TArray<FIsekaiDialogueLine> Lines;
+			if (P->GetDialogue()->GetLastChoice() == 0)
+			{
+				P->SetStoryFlag(TEXT("ToldTruthToSera"));
+				Lines.Add(MakeLine(TEXT("세라"), TEXT("...다른 세계. 틈 너머에서 온 자가 있었다는 옛 기록은 읽은 적이 있다. 믿지는 않았지만.")));
+				Lines.Add(MakeLine(TEXT("세라"), TEXT("그 말은 마을에서는 하지 마라. 틈을 연 자를 반길 사람은 없다.")));
+			}
+			else
+			{
+				P->SetStoryFlag(TEXT("HidOriginFromSera"));
+				Lines.Add(MakeLine(TEXT("세라"), TEXT("그래. 그 높이에서 떨어졌으면 그럴 수도 있지.")));
+				Lines.Add(MakeLine(TEXT("세라"), TEXT("...다만 네 손은 기억하고 있더군. 처음 쥐는 마력을 그렇게 쓰는 사람은 없다.")));
+			}
+			Lines.Add(MakeLine(TEXT("세라"), TEXT("자라. 내일은 마을이다.")));
+
+			P->GetDialogue()->StartDialogue(Lines);
+			Go(EStep::CampReply);
+		}
+		break;
+
+	case EStep::CampReply:
+		LookAtMage(RealDelta);
+		if (!P->GetDialogue()->IsDialogueActive())
+		{
+			H->FadeTo(FLinearColor::Black, 1.f, 1.5f);
+			SetMusic(nullptr, 1.f, 1.5f);
+			Go(EStep::ChapterFade);
+		}
+		break;
+
+	case EStep::ChapterFade:
+		if (StepTime > 1.8f)
+		{
+			// 검은 화면 사이에 밤이 깊어진다.
+			if (TimeOfDay.IsValid())
+			{
+				TimeOfDay->SetTimeOfDay(22.f);
+			}
+
+			H->SetTitle(Txt(TEXT("1장")), Txt(TEXT("고갯길   ·   끝")));
+			IsekaiAudio::Play(this, TEXT("SFX_Title"), 1.f);
+			Go(EStep::ChapterTitle);
+		}
+		break;
+
+	case EStep::ChapterTitle:
+		if (StepTime > 4.5f)
+		{
+			H->SetTitle(FText::GetEmpty(), FText::GetEmpty());
+			Go(EStep::ChapterEnd);
+		}
+		break;
+
+	case EStep::ChapterEnd:
+		if (StepTime > 1.4f)
+		{
+			FinishChapter1();
 		}
 		break;
 

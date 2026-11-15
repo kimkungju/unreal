@@ -21,6 +21,21 @@ class ISEKAI_API AIsekaiNPC : public ACharacter, public IIsekaiInteractable
 public:
 	AIsekaiNPC();
 
+	virtual void Tick(float DeltaSeconds) override;
+
+	/** 그 자리까지 곧장 걸어간다. 장애물을 돌아가지는 못한다. */
+	UFUNCTION(BlueprintCallable, Category = "NPC")
+	void WalkTo(const FVector& Destination);
+
+	UFUNCTION(BlueprintCallable, Category = "NPC")
+	void StopWalking() { bHasDestination = false; }
+
+	UFUNCTION(BlueprintPure, Category = "NPC")
+	bool IsWalking() const { return bHasDestination; }
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NPC")
+	float WalkSpeed = 300.f;
+
 	virtual FText GetInteractionPrompt_Implementation() const override;
 	virtual bool CanInteract_Implementation(AActor* Interactor) const override;
 	virtual void Interact_Implementation(AActor* Interactor) override;
@@ -37,6 +52,12 @@ public:
 	FText ObjectiveAfterTalk;
 
 protected:
+	virtual void BeginPlay() override;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Placeholder;
+
+private:
+	bool bHasDestination = false;
+	FVector WalkDestination = FVector::ZeroVector;
 };

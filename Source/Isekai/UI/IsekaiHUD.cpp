@@ -36,6 +36,7 @@ void AIsekaiHUD::Tick(float DeltaSeconds)
 	NarrationAlpha = FMath::FInterpConstantTo(NarrationAlpha, NarrationTarget, RealDelta, 2.5f);
 	TitleAlpha = FMath::FInterpConstantTo(TitleAlpha, TitleTarget, RealDelta, 1.2f);
 	LetterboxAmount = FMath::FInterpTo(LetterboxAmount, bLetterbox ? 1.f : 0.f, RealDelta, 4.f);
+	BarkTimeLeft = FMath::Max(0.f, BarkTimeLeft - RealDelta);
 }
 
 void AIsekaiHUD::FadeTo(const FLinearColor& InColor, float TargetAlpha, float Duration)
@@ -66,6 +67,43 @@ void AIsekaiHUD::SetNarration(const FText& InText)
 		Narration = InText;
 		NarrationTarget = 1.f;
 	}
+}
+
+void AIsekaiHUD::ShowBark(const FText& InSpeaker, const FText& InText, float Duration)
+{
+	Bark = FText::FromString(FString::Printf(TEXT("%s    %s"), *InSpeaker.ToString(), *InText.ToString()));
+	BarkTimeLeft = Duration;
+}
+
+FSlateColor AIsekaiHUD::GetBarkColor() const
+{
+	// 마지막 0.4초 동안 사라진다. 대화 상자가 떠 있으면 숨긴다.
+	const float Alpha = IsDialogueActive() ? 0.f : FMath::Clamp(BarkTimeLeft / 0.4f, 0.f, 1.f);
+	return FSlateColor(FLinearColor(1.f, 1.f, 1.f, Alpha));
+}
+
+FText AIsekaiHUD::GetDialogueChoicesText() const
+{
+	const AIsekaiCharacter* Character = GetCharacter();
+	if (!Character)
+	{
+		return FText::GetEmpty();
+	}
+
+	const TArray<FText> Choices = Character->GetDialogue()->GetCurrentLine().Choices;
+	FString Joined;
+	for (int32 Index = 0; Index < Choices.Num(); ++Index)
+	{
+		Joined += FString::Printf(TEXT("%s[%d]  %s"), Index > 0 ? TEXT("\n") : TEXT(""), Index + 1, *Choices[Index].ToString());
+	}
+	return FText::FromString(Joined);
+}
+
+FText AIsekaiHUD::GetDialogueHintText() const
+{
+	const AIsekaiCharacter* Character = GetCharacter();
+	const bool bChoosing = Character && Character->GetDialogue()->IsWaitingForChoice();
+	return FText::FromString(bChoosing ? TEXT("숫자 키로 고르기") : TEXT("[E] 다음"));
 }
 
 void AIsekaiHUD::SetHint(const FText& InText)
@@ -346,6 +384,26 @@ void AIsekaiHUD::BeginPlay()
 			})
 		]
 
+		// 걸으면서 나누는 한마디
+		+ SOverlay::Slot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Bottom)
+		.Padding(0.f, 0.f, 0.f, 150.f)
+		[
+			SNew(STextBlock)
+			.Font(DialogueFont)
+			.Justification(ETextJustify::Center)
+			.ShadowOffset(Shadow)
+			.ColorAndOpacity_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetBarkColor() : FSlateColor(FLinearColor::Transparent);
+			})
+			.Text_Lambda([WeakThis]()
+			{
+				return WeakThis.IsValid() ? WeakThis->GetBarkText() : FText::GetEmpty();
+			})
+		]
+
 		// 제목
 		+ SOverlay::Slot()
 		.HAlign(HAlign_Center)
@@ -433,6 +491,21 @@ void AIsekaiHUD::BeginPlay()
 						})
 					]
 
+					// 선택지. 없으면 빈 문구라 자리를 차지하지 않는다.
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.Padding(0.f, 14.f, 0.f, 0.f)
+					[
+						SNew(STextBlock)
+						.Font(DialogueFont)
+						.ColorAndOpacity(GoldColor)
+						.AutoWrapText(true)
+						.Text_Lambda([WeakThis]()
+						{
+							return WeakThis.IsValid() ? WeakThis->GetDialogueChoicesText() : FText::GetEmpty();
+						})
+					]
+
 					+ SVerticalBox::Slot()
 					.AutoHeight()
 					.HAlign(HAlign_Right)
@@ -441,7 +514,10 @@ void AIsekaiHUD::BeginPlay()
 						SNew(STextBlock)
 						.Font(SmallFont)
 						.ColorAndOpacity(White)
-						.Text(FText::FromString(TEXT("[E] 다음")))
+						.Text_Lambda([WeakThis]()
+						{
+							return WeakThis.IsValid() ? WeakThis->GetDialogueHintText() : FText::GetEmpty();
+						})
 					]
 				]
 			]

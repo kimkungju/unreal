@@ -79,3 +79,17 @@ void AIsekaiSpellProjectile::HandleHit(UPrimitiveComponent* HitComponent, AActor
 	Glow->SetAttenuationRadius(900.f);
 	SetLifeSpan(0.12f);
 }
+
+void AIsekaiSpellProjectile::ConfigureAsEnemyShot(float Speed, float InDamage)
+{
+	Damage = InDamage;
+
+	Movement->MaxSpeed = Speed;
+	Movement->Velocity = GetActorForwardVector() * Speed;
+
+	Mesh->SetRelativeScale3D(FVector(0.35f));
+	Glow->SetLightColor(FLinearColor(1.f, 0.25f, 0.15f));
+	Glow->SetIntensity(6000.f);
+
+	SetLifeSpan(6.f);
+}

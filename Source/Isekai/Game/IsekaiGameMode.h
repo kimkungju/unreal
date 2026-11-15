@@ -23,9 +23,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 	bool bSpawnTestNPC = true;
 
-	/** 레벨에 적이 하나도 없으면 허수아비 너머 멀리에 2마리를 만든다. 시험용. */
+	/** 켜면, 레벨에 적이 하나도 없을 때 허수아비 너머 멀리에 2마리를 만든다. 시험용. 이야기 진행이 적을 직접 내보내므로 평소에는 끈다. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
-	bool bSpawnTestEnemies = true;
+	bool bSpawnTestEnemies = false;
 
 private:
 	void SpawnTestDummies();

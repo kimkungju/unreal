@@ -37,6 +37,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	void StartChasing();
 
+	/** 멀리서 탄을 쏘는 종류로 바꾼다. 약하고 느리지만 거리를 둔다. 만든 직후에 부른다. */
+	UFUNCTION(BlueprintCallable, Category = "Enemy")
+	void MakeRanged();
+
 	/** 크기, 체력, 공격력을 한꺼번에 키운다. 만든 직후에 부른다. */
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	void MakeElite();
@@ -65,6 +69,17 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy")
 	float MoveSpeed = 380.f;
+
+	/** 켜면 붙어서 때리는 대신 RangedRange 안에서 탄을 쏜다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy")
+	bool bRanged = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy")
+	float RangedRange = 1400.f;
+
+	/** 탄이 날아가는 속도 (cm/s). 느릴수록 피하기 쉽다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy")
+	float ShotSpeed = 900.f;
 
 	/** 맞았을 때 뒤로 밀리는 세기 (cm/s). 0이면 밀리지 않는다. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy")
@@ -101,6 +116,7 @@ private:
 
 	void SetState(EState NewState);
 	void SpawnShards();
+	void FireShot(const APawn* Target);
 
 	EState State = EState::Idle;
 	float StateTime = 0.f;

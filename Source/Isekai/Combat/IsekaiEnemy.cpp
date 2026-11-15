@@ -3,6 +3,7 @@
 #include "Audio/IsekaiAudio.h"
 
 #include "Combat/IsekaiHealthComponent.h"
+#include "Combat/IsekaiSpellProjectile.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -62,6 +63,47 @@ void AIsekaiEnemy::StartChasing()
 	if (State == EState::Idle)
 	{
 		SetState(EState::Chase);
+	}
+}
+
+void AIsekaiEnemy::MakeRanged()
+{
+	bRanged = true;
+	Health->MaxHealth = 50.f;
+	Health->ResetHealth();
+	AttackDamage = 12.f;
+	WindupTime = 0.8f;
+	RecoverTime = 1.8f;
+	MoveSpeed = 260.f;
+	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
+
+	// 붙어서 싸우는 종류와 구분되도록 가늘고 길게.
+	PlaceholderBaseScale = FVector(0.55f, 0.55f, 2.2f);
+	Placeholder->SetRelativeScale3D(PlaceholderBaseScale);
+}
+
+void AIsekaiEnemy::FireShot(const APawn* Target)
+{
+	UWorld* World = GetWorld();
+	if (!World || !Target)
+	{
+		return;
+	}
+
+	const FVector Muzzle = GetActorLocation() + FVector(0.f, 0.f, 40.f);
+	const FVector Aim = (Target->GetActorLocation() - Muzzle).GetSafeNormal();
+
+	FActorSpawnParameters Params;
+	Params.Owner = this;
+	Params.Instigator = this;
+	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	AIsekaiSpellProjectile* Shot = World->SpawnActor<AIsekaiSpellProjectile>(AIsekaiSpellProjectile::StaticClass(),
+		Muzzle + Aim * 90.f, Aim.Rotation(), Params);
+	if (Shot)
+	{
+		Shot->ConfigureAsEnemyShot(ShotSpeed, AttackDamage);
+		IsekaiAudio::Play(this, TEXT("SFX_Cast"), 0.45f, 0.1f);
 	}
 }
 
@@ -126,7 +168,7 @@ void AIsekaiEnemy::Tick(float DeltaSeconds)
 		{
 			SetState(EState::Idle);
 		}
-		else if (Distance <= AttackRange)
+		else if (Distance <= (bRanged ? RangedRange : AttackRange))
 		{
 			SetState(EState::Windup);
 		}
@@ -144,8 +186,12 @@ void AIsekaiEnemy::Tick(float DeltaSeconds)
 
 		if (StateTime >= WindupTime)
 		{
+			if (bRanged)
+			{
+				FireShot(PlayerPawn);
+			}
 			// 예비 동작 동안 충분히 물러났으면 맞지 않는다.
-			if (Distance <= AttackRange + 60.f)
+			else if (Distance <= AttackRange + 60.f)
 			{
 				UGameplayStatics::ApplyDamage(PlayerPawn, AttackDamage, GetController(), this, nullptr);
 			}
