@@ -36,6 +36,14 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Enemy")
 	bool IsDefeated() const { return State == EState::Dead; }
 
+	/** 큰 종류인지. 화면 위쪽에 체력 막대가 뜬다. */
+	UFUNCTION(BlueprintPure, Category = "Enemy")
+	bool IsElite() const { return bElite; }
+
+	/** 0~1 */
+	UFUNCTION(BlueprintPure, Category = "Enemy")
+	float GetHealthFraction() const;
+
 	/** 공격 예비 동작 중인지. 연출이 이 순간을 잡아 쓴다. */
 	UFUNCTION(BlueprintPure, Category = "Enemy")
 	bool IsWindingUp() const { return State == EState::Windup; }
@@ -159,6 +167,7 @@ private:
 	void FireShot(const APawn* Target);
 
 	EState State = EState::Idle;
+	bool bElite = false;
 	float StateTime = 0.f;
 
 	// 뼈대를 움직이는 데 쓰는 값들

@@ -38,6 +38,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Spell")
 	float GetMana() const { return Mana; }
 
+	/** 남은 쿨다운의 비율. 1이면 막 썼고 0이면 준비됨. 화면 표시용. */
+	float GetAttackCooldownFraction() const { return AttackCooldown > 0.f ? CooldownRemaining / AttackCooldown : 0.f; }
+	float GetDashCooldownFraction() const { return DashCooldown > 0.f ? DashCooldownRemaining / DashCooldown : 0.f; }
+
 	/** 시전에 성공했을 때 알린다. 화면 흔들림이나 연출이 여기에 건다. */
 	FSimpleMulticastDelegate OnAttackCast;
 	FSimpleMulticastDelegate OnDashCast;

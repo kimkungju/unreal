@@ -149,8 +149,15 @@ void AIsekaiEnemy::MakeRanged()
 	Head->SetRelativeScale3D(FVector(0.36f, 0.3f, 0.3f));
 }
 
+float AIsekaiEnemy::GetHealthFraction() const
+{
+	return Health->MaxHealth > 0.f ? Health->GetHealth() / Health->MaxHealth : 0.f;
+}
+
 void AIsekaiEnemy::MakeElite()
 {
+	bElite = true;
+
 	// 커진 만큼 발이 땅에 묻히지 않도록 먼저 들어 올린다.
 	AddActorWorldOffset(FVector(0.f, 0.f, 60.f));
 	SetActorScale3D(FVector(1.6f));

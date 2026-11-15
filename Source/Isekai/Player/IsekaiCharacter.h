@@ -69,6 +69,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Isekai")
 	bool IsThirdPerson() const { return bThirdPerson; }
 
+	/** 빛 마법이 켜져 있는지 */
+	UFUNCTION(BlueprintPure, Category = "Isekai")
+	bool IsLightOn() const;
+
 	/** 화면을 흔든다. 1이 강한 충격. 이미 더 세게 흔들리고 있으면 무시된다. */
 	UFUNCTION(BlueprintCallable, Category = "Isekai")
 	void AddCameraShake(float Strength);

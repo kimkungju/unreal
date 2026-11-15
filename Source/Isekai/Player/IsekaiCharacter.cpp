@@ -168,6 +168,11 @@ void AIsekaiCharacter::SetThirdPerson(bool bInThirdPerson)
 	CameraBoom->bDoCollisionTest = bThirdPerson;
 }
 
+bool AIsekaiCharacter::IsLightOn() const
+{
+	return SpellLight->IsVisible();
+}
+
 void AIsekaiCharacter::OnToggleView()
 {
 	SetThirdPerson(!bThirdPerson);
