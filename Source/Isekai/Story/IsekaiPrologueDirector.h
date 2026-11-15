@@ -10,6 +10,7 @@ class AIsekaiGravityAnomaly;
 class AIsekaiHUD;
 class AIsekaiNPC;
 class AIsekaiTimeOfDay;
+class UAudioComponent;
 
 /**
  * 프롤로그(약 3분)의 진행을 처음부터 끝까지 맡는다.
@@ -50,6 +51,13 @@ public:
 protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
+	/** 지금 반복 재생 중인 배경 소리와 음악. 가비지 컬렉션에 쓸려 가지 않게 붙잡아 둔다. */
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> AmbienceLoop;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> MusicLoop;
+
 private:
 	enum class EStep : uint8
 	{
@@ -86,6 +94,10 @@ private:
 	int32 CountLivingEnemies() const;
 	void LookAtMage(float RealDelta);
 	void SetTimeScale(float Scale);
+
+	/** 배경 소리를 바꾼다. 이름이 nullptr이면 끄기만 한다. */
+	void SetAmbience(const TCHAR* Name, float Volume = 1.f, float FadeSeconds = 0.5f);
+	void SetMusic(const TCHAR* Name, float Volume = 1.f, float FadeSeconds = 1.f);
 
 	void HandleAttackCast();
 	void HandleDashCast();

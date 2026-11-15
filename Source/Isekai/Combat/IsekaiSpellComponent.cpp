@@ -1,5 +1,7 @@
 ﻿#include "Combat/IsekaiSpellComponent.h"
 
+#include "Audio/IsekaiAudio.h"
+
 #include "Combat/IsekaiSpellProjectile.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
@@ -59,6 +61,7 @@ bool UIsekaiSpellComponent::CastAttack()
 
 	Mana -= AttackManaCost;
 	CooldownRemaining = AttackCooldown;
+	IsekaiAudio::Play(this, TEXT("SFX_Cast"), 0.8f, 0.06f);
 	OnAttackCast.Broadcast();
 	return true;
 }
@@ -93,6 +96,7 @@ bool UIsekaiSpellComponent::CastDash()
 
 	Mana -= DashManaCost;
 	DashCooldownRemaining = DashCooldown;
+	IsekaiAudio::Play(this, TEXT("SFX_Dash"), 0.9f, 0.05f);
 	OnDashCast.Broadcast();
 	return true;
 }

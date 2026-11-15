@@ -1,5 +1,7 @@
 ﻿#include "Combat/IsekaiSpellProjectile.h"
 
+#include "Audio/IsekaiAudio.h"
+
 #include "Components/PointLightComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -66,6 +68,8 @@ void AIsekaiSpellProjectile::HandleHit(UPrimitiveComponent* HitComponent, AActor
 	{
 		UGameplayStatics::ApplyDamage(OtherActor, Damage, GetInstigatorController(), this, nullptr);
 	}
+
+	IsekaiAudio::Play(this, TEXT("SFX_Impact"), 0.8f, 0.08f);
 
 	// 바로 사라지지 않고, 멈춘 자리에서 한순간 크게 번쩍인 뒤 사라진다.
 	Movement->StopMovementImmediately();

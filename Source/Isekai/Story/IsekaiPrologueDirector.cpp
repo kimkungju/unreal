@@ -1,7 +1,10 @@
 ﻿#include "Story/IsekaiPrologueDirector.h"
 
+#include "Audio/IsekaiAudio.h"
+
 #include "Combat/IsekaiEnemy.h"
 #include "Combat/IsekaiSpellComponent.h"
+#include "Components/AudioComponent.h"
 #include "Components/SceneComponent.h"
 #include "Dialogue/IsekaiDialogueComponent.h"
 #include "Dialogue/IsekaiNPC.h"
@@ -60,6 +63,18 @@ void AIsekaiPrologueDirector::EndPlay(const EEndPlayReason::Type EndPlayReason)
 void AIsekaiPrologueDirector::SetTimeScale(float Scale)
 {
 	UGameplayStatics::SetGlobalTimeDilation(this, Scale);
+}
+
+void AIsekaiPrologueDirector::SetAmbience(const TCHAR* Name, float Volume, float FadeSeconds)
+{
+	IsekaiAudio::StopLoop(AmbienceLoop, FadeSeconds);
+	AmbienceLoop = Name ? IsekaiAudio::StartLoop(this, Name, Volume, FadeSeconds) : nullptr;
+}
+
+void AIsekaiPrologueDirector::SetMusic(const TCHAR* Name, float Volume, float FadeSeconds)
+{
+	IsekaiAudio::StopLoop(MusicLoop, FadeSeconds);
+	MusicLoop = Name ? IsekaiAudio::StartLoop(this, Name, Volume, FadeSeconds) : nullptr;
 }
 
 void AIsekaiPrologueDirector::Go(EStep NewStep)
@@ -122,6 +137,8 @@ void AIsekaiPrologueDirector::Begin()
 	NarrationIndex = 0;
 	if (bPlayOpeningNarration)
 	{
+		// 독백의 배경은 비 오는 밤이다.
+		SetAmbience(TEXT("LOOP_Rain"), 0.8f, 1.f);
 		Go(EStep::Narration);
 	}
 	else
@@ -139,6 +156,8 @@ void AIsekaiPrologueDirector::StartFall()
 	H->SetNarration(FText::GetEmpty());
 	H->FadeTo(FLinearColor::White, 1.f, 0.f);
 	H->FadeTo(FLinearColor::White, 0.f, 1.8f);
+
+	SetAmbience(TEXT("LOOP_Wind"), 1.f, 0.6f);
 
 	P->GetCharacterMovement()->Velocity = FVector::ZeroVector;
 	P->GetCharacterMovement()->SetMovementMode(MOVE_Falling);
@@ -168,6 +187,9 @@ void AIsekaiPrologueDirector::StartCombat()
 	P->GetObjectives()->SetObjective(Txt(TEXT("살아남아라")));
 	P->AddCameraShake(0.6f);
 
+	IsekaiAudio::Play(this, TEXT("SFX_Land"), 0.6f);
+	SetMusic(TEXT("MUS_Combat"), 0.7f, 1.5f);
+
 	// 첫 짐승은 동쪽에서 온다.
 	FirstEnemy = SpawnEnemy(0.f);
 
@@ -187,6 +209,9 @@ void AIsekaiPrologueDirector::StartSurge()
 	H->SetGameplayVisible(false);
 	H->SetNarration(Txt(TEXT("땅이, 나를 놓았다.")));
 	H->FadeTo(FLinearColor::White, 1.f, 2.8f);
+
+	SetMusic(nullptr, 1.f, 1.f);
+	SetAmbience(TEXT("LOOP_Rumble"), 1.f, 0.4f);
 
 	// 중력이 뒤집힌다. 땅에 붙어 있으면 중력이 작용하지 않으므로 먼저 띄운다.
 	if (Anomaly)
@@ -212,6 +237,8 @@ void AIsekaiPrologueDirector::Finish()
 	P->bCanCastAttack = true;
 	P->bCanCastDash = true;
 	P->GetObjectives()->SetObjective(Txt(TEXT("마법사를 따라 마을로 (다음 구간은 준비 중)")));
+
+	SetMusic(TEXT("MUS_Ambient"), 0.6f, 3.f);
 
 	if (TimeOfDay.IsValid())
 	{
@@ -310,6 +337,13 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 		{
 			H->SetNarration(Txt(OpeningLines[NarrationIndex]));
 			bFlagA = true;
+
+			// 세 번째 줄("빛. 소리. 그리고—")에서 빗소리가 충격음과 함께 끊긴다.
+			if (NarrationIndex == 2)
+			{
+				SetAmbience(nullptr, 1.f, 0.05f);
+				IsekaiAudio::Play(this, TEXT("SFX_Land"), 1.f);
+			}
 		}
 		if (!bFlagB && StepTime > 2.2f)
 		{
@@ -360,6 +394,9 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 			H->SetNarration(FText::GetEmpty());
 			H->FadeTo(FLinearColor::White, 0.7f, 0.f);
 			H->FadeTo(FLinearColor::White, 0.f, 0.7f);
+
+			SetAmbience(nullptr, 1.f, 0.3f);
+			IsekaiAudio::Play(this, TEXT("SFX_Land"), 1.f);
 
 			P->AddCameraShake(1.f);
 			P->SetTargetFOV(90.f);
@@ -423,6 +460,7 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 		if (Distance < 650.0 || StepTime > 6.f)
 		{
 			SetTimeScale(0.12f);
+			IsekaiAudio::Play(this, TEXT("SFX_SlowMo"), 0.9f);
 			P->bCanCastAttack = true;
 			bAttackCastSeen = false;
 			H->SetHint(Txt(TEXT("좌클릭  —  손끝의 열을 쏘아라")));
@@ -475,6 +513,7 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 				}
 				P->bCanCastDash = true;
 				P->AddCameraShake(0.8f);
+				IsekaiAudio::Play(this, TEXT("SFX_Land"), 0.8f);
 				P->GetObjectives()->SetObjective(Txt(TEXT("큰 놈이 온다")));
 				bFlagA = true;
 			}
@@ -491,6 +530,7 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 		if (Elite->IsWindingUp())
 		{
 			SetTimeScale(0.15f);
+			IsekaiAudio::Play(this, TEXT("SFX_SlowMo"), 0.9f);
 			bDashCastSeen = false;
 			H->SetHint(Txt(TEXT("우클릭  —  몸을 날려 피하라")));
 			Go(EStep::TeachDashSlow);
@@ -532,6 +572,7 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 			H->SetNarration(FText::GetEmpty());
 			H->SetLetterbox(true);
 			H->FadeTo(FLinearColor::White, 0.f, 2.f);
+			SetAmbience(nullptr, 1.f, 1.5f);
 
 			Go(EStep::SurgeRecover);
 		}
@@ -565,6 +606,7 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 		{
 			// 제목은 아직 정해지지 않았다. 지금은 프로젝트의 임시 이름을 쓴다.
 			H->SetTitle(Txt(TEXT("ISEKAI")), Txt(TEXT("프롤로그   ·   떨어진 자")));
+			IsekaiAudio::Play(this, TEXT("SFX_Title"), 1.f);
 			Go(EStep::TitleHold);
 		}
 		break;

@@ -1,5 +1,7 @@
 ﻿#include "Combat/IsekaiEnemy.h"
 
+#include "Audio/IsekaiAudio.h"
+
 #include "Combat/IsekaiHealthComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -191,6 +193,7 @@ void AIsekaiEnemy::HandleDied(AActor* Killer)
 {
 	SetState(EState::Dead);
 	SpawnShards();
+	IsekaiAudio::Play(this, TEXT("SFX_EnemyDie"), 0.9f, 0.08f);
 	SetActorEnableCollision(false);
 	SetActorHiddenInGame(true);
 	SetLifeSpan(0.5f);

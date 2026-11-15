@@ -1,5 +1,7 @@
 ﻿#include "Game/IsekaiGameMode.h"
 
+#include "Audio/IsekaiAudio.h"
+
 #include "Combat/IsekaiEnemy.h"
 #include "Combat/IsekaiTargetDummy.h"
 #include "Dialogue/IsekaiNPC.h"
@@ -18,6 +20,9 @@ AIsekaiGameMode::AIsekaiGameMode()
 void AIsekaiGameMode::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// 지난 실행 뒤에 새로 가져온 소리 어셋을 찾을 수 있게 한다.
+	IsekaiAudio::ResetCache();
 
 	// 레벨에 시간 관리 액터를 놓지 않았어도 낮밤이 돌도록 하나 만든다.
 	const TActorIterator<AIsekaiTimeOfDay> Existing(GetWorld());

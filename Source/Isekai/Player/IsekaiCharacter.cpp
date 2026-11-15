@@ -1,5 +1,7 @@
 ﻿#include "Player/IsekaiCharacter.h"
 
+#include "Audio/IsekaiAudio.h"
+
 #include "Camera/CameraComponent.h"
 #include "Combat/IsekaiHealthComponent.h"
 #include "Combat/IsekaiSpellComponent.h"
@@ -101,6 +103,7 @@ void AIsekaiCharacter::HandleHealthChanged(float NewHealth, float Delta)
 	{
 		LastDamageTime = GetWorld()->GetTimeSeconds();
 		AddCameraShake(0.7f);
+		IsekaiAudio::Play(this, TEXT("SFX_Hurt"), 1.f, 0.05f);
 	}
 }
 

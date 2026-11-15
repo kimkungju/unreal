@@ -1,5 +1,7 @@
 ﻿#include "Dialogue/IsekaiDialogueComponent.h"
 
+#include "Audio/IsekaiAudio.h"
+
 #include "Dialogue/IsekaiObjectiveComponent.h"
 #include "GameFramework/Actor.h"
 
@@ -17,6 +19,7 @@ bool UIsekaiDialogueComponent::StartDialogue(const TArray<FIsekaiDialogueLine>& 
 
 	Lines = InLines;
 	CurrentIndex = 0;
+	IsekaiAudio::Play(this, TEXT("SFX_Tick"));
 	OnDialogueStarted.Broadcast();
 	return true;
 }
@@ -29,6 +32,7 @@ void UIsekaiDialogueComponent::Advance()
 	}
 
 	++CurrentIndex;
+	IsekaiAudio::Play(this, TEXT("SFX_Tick"));
 	if (!Lines.IsValidIndex(CurrentIndex))
 	{
 		EndDialogue();
