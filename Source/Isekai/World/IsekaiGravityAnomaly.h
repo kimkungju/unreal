@@ -24,9 +24,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Anomaly")
 	void SetGravityScaleInside(float NewScale);
 
-	/** 지대 안에서의 중력 배율. 1이 보통, 0에 가까울수록 떠오른다. */
+	/** 지대 안에서의 중력 배율. 1이 그 캐릭터의 평소 중력, 0에 가까울수록 떠오른다. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Anomaly", meta = (ClampMin = "-1", ClampMax = "1"))
-	float GravityScaleInside = 0.25f;
+	float GravityScaleInside = 0.5f;
 
 protected:
 	virtual void BeginPlay() override;

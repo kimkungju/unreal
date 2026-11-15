@@ -66,11 +66,11 @@ public:
 
 	/** 수평으로 날아가는 속도 (cm/s) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell")
-	float DashSpeed = 1300.f;
+	float DashSpeed = 1500.f;
 
 	/** 살짝 떠오르는 속도 (cm/s). 땅에 붙어 있으면 마찰로 바로 멈춘다. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell")
-	float DashLift = 200.f;
+	float DashLift = 260.f;
 
 	/** 빛 마법을 켤 때 드는 마나 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spell", meta = (ClampMin = "0"))

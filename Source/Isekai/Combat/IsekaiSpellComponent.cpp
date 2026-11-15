@@ -5,6 +5,7 @@
 #include "Combat/IsekaiSpellProjectile.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/PlayerController.h"
 #include "GameFramework/Pawn.h"
 
 UIsekaiSpellComponent::UIsekaiSpellComponent()
@@ -46,15 +47,46 @@ bool UIsekaiSpellComponent::CastAttack()
 	FRotator EyeRotation;
 	Owner->GetActorEyesViewPoint(EyeLocation, EyeRotation);
 
-	// 카메라 바로 앞에서 생기면 화면을 가리므로 조금 앞에서 시작한다.
-	const FVector SpawnLocation = EyeLocation + EyeRotation.Vector() * 60.f;
+	// 조준점이 가리키는 곳을 찾는다. 3인칭에서는 카메라가 몸 뒤에 있어서
+	// 눈에서 곧장 쏘면 조준점과 어긋난다. 카메라에서 선을 쏴 닿는 곳을 겨눈다.
+	FVector AimDirection = EyeRotation.Vector();
+
+	const APawn* OwnerPawn = Cast<APawn>(Owner);
+	const APlayerController* PC = OwnerPawn ? Cast<APlayerController>(OwnerPawn->GetController()) : nullptr;
+	if (PC)
+	{
+		FVector CameraLocation;
+		FRotator CameraRotation;
+		PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+		// 카메라와 몸 사이에 있는 것은 건너뛴다.
+		const FVector CameraForward = CameraRotation.Vector();
+		const FVector TraceStart = CameraLocation + CameraForward * FVector::Dist(CameraLocation, EyeLocation);
+		const FVector TraceEnd = CameraLocation + CameraForward * 10000.f;
+
+		FCollisionQueryParams AimParams(SCENE_QUERY_STAT(IsekaiSpellAim), false, Owner);
+		FHitResult AimHit;
+		const FVector AimPoint = World->LineTraceSingleByChannel(AimHit, TraceStart, TraceEnd, ECC_Visibility, AimParams)
+			? AimHit.ImpactPoint
+			: TraceEnd;
+
+		const FVector ToAimPoint = AimPoint - EyeLocation;
+		if (!ToAimPoint.IsNearlyZero())
+		{
+			AimDirection = ToAimPoint.GetSafeNormal();
+		}
+	}
+
+	// 눈 바로 앞에서 생기면 화면을 가리므로 조금 앞에서 시작한다.
+	const FVector SpawnLocation = EyeLocation + AimDirection * 60.f;
+	const FRotator SpawnRotation = AimDirection.Rotation();
 
 	FActorSpawnParameters Params;
 	Params.Owner = Owner;
 	Params.Instigator = Cast<APawn>(Owner);
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	if (!World->SpawnActor<AIsekaiSpellProjectile>(AttackProjectileClass, SpawnLocation, EyeRotation, Params))
+	if (!World->SpawnActor<AIsekaiSpellProjectile>(AttackProjectileClass, SpawnLocation, SpawnRotation, Params))
 	{
 		return false;
 	}

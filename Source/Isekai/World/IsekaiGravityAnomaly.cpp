@@ -39,7 +39,10 @@ void AIsekaiGravityAnomaly::ApplyGravity(AActor* OtherActor, float Scale) const
 {
 	if (ACharacter* Character = Cast<ACharacter>(OtherActor))
 	{
-		Character->GetCharacterMovement()->GravityScale = Scale;
+		// 캐릭터마다 평소 중력이 다를 수 있으므로(플레이어는 더 무겁다) 그 값에 곱한다.
+		const ACharacter* Defaults = Character->GetClass()->GetDefaultObject<ACharacter>();
+		const float NormalGravity = Defaults ? Defaults->GetCharacterMovement()->GravityScale : 1.f;
+		Character->GetCharacterMovement()->GravityScale = NormalGravity * Scale;
 	}
 }
 

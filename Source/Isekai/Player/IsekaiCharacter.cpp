@@ -7,30 +7,74 @@
 #include "Combat/IsekaiSpellComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/PointLightComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Dialogue/IsekaiDialogueComponent.h"
 #include "Dialogue/IsekaiObjectiveComponent.h"
 #include "Engine/LocalPlayer.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "GameFramework/SpringArmComponent.h"
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
 #include "Interaction/IsekaiInteractionComponent.h"
 #include "Misc/App.h"
+#include "UObject/ConstructorHelpers.h"
 
 AIsekaiCharacter::AIsekaiCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+	// 점프: 기본값보다 무겁게 떨어지고 그만큼 세게 뛴다. 높이는 비슷하고 떠 있는 시간이 짧다.
+	// (엔진 기본값은 약 0.86초, 이 값은 약 0.74초. 뛰는 높이는 약 115cm.)
+	GetCharacterMovement()->GravityScale = 1.7f;
+	GetCharacterMovement()->JumpZVelocity = 620.f;
+	GetCharacterMovement()->AirControl = 0.45f;
+	GetCharacterMovement()->RotationRate = FRotator(0.f, 720.f, 0.f);
+
+	// 1인칭과 3인칭이 같은 카메라를 쓴다. 팔이 마우스를 따라 돌고 카메라는 그 끝에 매달린다.
+	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
+	CameraBoom->SetupAttachment(GetCapsuleComponent());
+	CameraBoom->SetRelativeLocation(FVector(0.f, 0.f, 64.f));
+	CameraBoom->TargetArmLength = 0.f;
+	CameraBoom->bUsePawnControlRotation = true;
+	CameraBoom->bDoCollisionTest = false;
+
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
-	Camera->SetupAttachment(GetCapsuleComponent());
-	Camera->SetRelativeLocation(FVector(0.f, 0.f, 64.f));
-	Camera->bUsePawnControlRotation = true;
+	Camera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName);
+	Camera->bUsePawnControlRotation = false;
+
+	// 3인칭에서 보이는 임시 몸. 1인칭에서는 숨긴다.
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> BodyShape(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> HeadShape(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+
+	BodyMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BodyMesh"));
+	BodyMesh->SetupAttachment(GetCapsuleComponent());
+	BodyMesh->SetRelativeLocation(FVector(0.f, 0.f, -24.f));
+	BodyMesh->SetRelativeScale3D(FVector(0.5f, 0.38f, 1.28f));
+	BodyMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	BodyMesh->SetVisibility(false);
+	if (BodyShape.Succeeded())
+	{
+		BodyMesh->SetStaticMesh(BodyShape.Object);
+	}
+
+	HeadMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeadMesh"));
+	HeadMesh->SetupAttachment(GetCapsuleComponent());
+	HeadMesh->SetRelativeLocation(FVector(0.f, 0.f, 58.f));
+	HeadMesh->SetRelativeScale3D(FVector(0.36f));
+	HeadMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HeadMesh->SetVisibility(false);
+	if (HeadShape.Succeeded())
+	{
+		HeadMesh->SetStaticMesh(HeadShape.Object);
+	}
 
 	Interaction = CreateDefaultSubobject<UIsekaiInteractionComponent>(TEXT("Interaction"));
 	Spells = CreateDefaultSubobject<UIsekaiSpellComponent>(TEXT("Spells"));
@@ -39,8 +83,8 @@ AIsekaiCharacter::AIsekaiCharacter()
 	Objectives = CreateDefaultSubobject<UIsekaiObjectiveComponent>(TEXT("Objectives"));
 
 	SpellLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("SpellLight"));
-	SpellLight->SetupAttachment(Camera);
-	SpellLight->SetRelativeLocation(FVector(40.f, 25.f, -15.f));
+	SpellLight->SetupAttachment(GetCapsuleComponent());
+	SpellLight->SetRelativeLocation(FVector(40.f, 25.f, 50.f));
 	SpellLight->SetIntensity(5000.f);
 	SpellLight->SetAttenuationRadius(1800.f);
 	SpellLight->SetLightColor(FLinearColor(0.75f, 0.85f, 1.f));
@@ -85,6 +129,48 @@ void AIsekaiCharacter::Tick(float DeltaSeconds)
 	{
 		Camera->SetFieldOfView(FMath::FInterpTo(Camera->FieldOfView, TargetFOV, RealDelta, 3.f));
 	}
+
+	// 시점 전환: 팔 길이를 부드럽게 늘이고 줄인다.
+	const float WantedArm = bThirdPerson ? ThirdPersonDistance : 0.f;
+	CameraBoom->TargetArmLength = FMath::FInterpTo(CameraBoom->TargetArmLength, WantedArm, RealDelta, 9.f);
+
+	// 카메라가 몸 안에 있을 때 몸이 보이면 화면을 가린다. 충분히 멀어진 뒤에 보여 준다.
+	const bool bShowBody = CameraBoom->TargetArmLength > 110.f;
+	if (bShowBody != bBodyShown)
+	{
+		bBodyShown = bShowBody;
+		BodyMesh->SetVisibility(bShowBody);
+		HeadMesh->SetVisibility(bShowBody);
+	}
+
+	// 착지 직전에 누른 점프를 기억했다가 뛸 수 있게 되는 순간 뛴다.
+	if (JumpBufferLeft > 0.f)
+	{
+		JumpBufferLeft -= RealDelta;
+		if (CanJump() && !IsInDialogue() && !bMoveLocked)
+		{
+			Jump();
+			JumpBufferLeft = 0.f;
+		}
+	}
+}
+
+void AIsekaiCharacter::SetThirdPerson(bool bInThirdPerson)
+{
+	bThirdPerson = bInThirdPerson;
+
+	// 1인칭: 몸이 늘 카메라와 같은 쪽을 본다.
+	// 3인칭: 몸은 움직이는 쪽을 보고, 카메라는 마우스로 따로 돌린다.
+	bUseControllerRotationYaw = !bThirdPerson;
+	GetCharacterMovement()->bOrientRotationToMovement = bThirdPerson;
+
+	// 3인칭에서는 카메라가 벽을 뚫지 않게 한다.
+	CameraBoom->bDoCollisionTest = bThirdPerson;
+}
+
+void AIsekaiCharacter::OnToggleView()
+{
+	SetThirdPerson(!bThirdPerson);
 }
 
 void AIsekaiCharacter::AddCameraShake(float Strength)
@@ -155,6 +241,7 @@ void AIsekaiCharacter::BuildDefaultInput()
 	CastAttackAction = MakeAction(TEXT("IA_CastAttack"), EInputActionValueType::Boolean);
 	CastDashAction = MakeAction(TEXT("IA_CastDash"), EInputActionValueType::Boolean);
 	ToggleLightAction = MakeAction(TEXT("IA_ToggleLight"), EInputActionValueType::Boolean);
+	ToggleViewAction = MakeAction(TEXT("IA_ToggleView"), EInputActionValueType::Boolean);
 	Choice1Action = MakeAction(TEXT("IA_Choice1"), EInputActionValueType::Boolean);
 	Choice2Action = MakeAction(TEXT("IA_Choice2"), EInputActionValueType::Boolean);
 	Choice3Action = MakeAction(TEXT("IA_Choice3"), EInputActionValueType::Boolean);
@@ -195,6 +282,7 @@ void AIsekaiCharacter::BuildDefaultInput()
 	MappingContext->MapKey(CastAttackAction, EKeys::LeftMouseButton);
 	MappingContext->MapKey(CastDashAction, EKeys::RightMouseButton);
 	MappingContext->MapKey(ToggleLightAction, EKeys::F);
+	MappingContext->MapKey(ToggleViewAction, EKeys::V);
 	MappingContext->MapKey(Choice1Action, EKeys::One);
 	MappingContext->MapKey(Choice2Action, EKeys::Two);
 	MappingContext->MapKey(Choice3Action, EKeys::Three);
@@ -222,6 +310,7 @@ void AIsekaiCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 	Input->BindAction(CastAttackAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnCastAttack);
 	Input->BindAction(CastDashAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnCastDash);
 	Input->BindAction(ToggleLightAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnToggleLight);
+	Input->BindAction(ToggleViewAction, ETriggerEvent::Started, this, &AIsekaiCharacter::OnToggleView);
 	Input->BindAction(Choice1Action, ETriggerEvent::Started, this, &AIsekaiCharacter::OnChoice1);
 	Input->BindAction(Choice2Action, ETriggerEvent::Started, this, &AIsekaiCharacter::OnChoice2);
 	Input->BindAction(Choice3Action, ETriggerEvent::Started, this, &AIsekaiCharacter::OnChoice3);
@@ -253,9 +342,19 @@ bool AIsekaiCharacter::IsInDialogue() const
 
 void AIsekaiCharacter::OnJumpStarted()
 {
-	if (!IsInDialogue() && !bMoveLocked)
+	if (IsInDialogue() || bMoveLocked)
+	{
+		return;
+	}
+
+	if (CanJump())
 	{
 		Jump();
+	}
+	else
+	{
+		// 아직 공중이다. 곧 착지할지 모르니 잠깐 기억해 둔다.
+		JumpBufferLeft = JumpBufferSeconds;
 	}
 }
 
@@ -267,9 +366,14 @@ void AIsekaiCharacter::OnMove(const FInputActionValue& Value)
 		return;
 	}
 
+	// 카메라가 보는 방향을 기준으로 움직인다. 3인칭에서는 몸의 방향과 카메라의 방향이 다르다.
+	const FRotator YawOnly(0.f, GetControlRotation().Yaw, 0.f);
+	const FVector Forward = FRotationMatrix(YawOnly).GetUnitAxis(EAxis::X);
+	const FVector Right = FRotationMatrix(YawOnly).GetUnitAxis(EAxis::Y);
+
 	const FVector2D Axis = Value.Get<FVector2D>();
-	AddMovementInput(GetActorForwardVector(), Axis.Y);
-	AddMovementInput(GetActorRightVector(), Axis.X);
+	AddMovementInput(Forward, Axis.Y);
+	AddMovementInput(Right, Axis.X);
 }
 
 void AIsekaiCharacter::OnLook(const FInputActionValue& Value)
@@ -313,10 +417,18 @@ void AIsekaiCharacter::OnInteract()
 
 void AIsekaiCharacter::OnCastAttack()
 {
-	if (!IsInDialogue() && bCanCastAttack)
+	if (IsInDialogue() || !bCanCastAttack)
 	{
-		Spells->CastAttack();
+		return;
 	}
+
+	// 3인칭에서는 쏘는 순간 몸을 조준 방향으로 돌린다.
+	if (bThirdPerson)
+	{
+		SetActorRotation(FRotator(0.f, GetControlRotation().Yaw, 0.f));
+	}
+
+	Spells->CastAttack();
 }
 
 void AIsekaiCharacter::OnCastDash()

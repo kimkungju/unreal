@@ -127,7 +127,7 @@ void AIsekaiPrologueDirector::Begin()
 		P->Rest();
 		if (TimeOfDay.IsValid())
 		{
-			TimeOfDay->SetTimeOfDay(15.5f);
+			TimeOfDay->SetTimeOfDay(18.5f);
 		}
 		Finish();
 		return;
@@ -141,11 +141,12 @@ void AIsekaiPrologueDirector::Begin()
 	H->SetLetterbox(true);
 	H->FadeTo(FLinearColor::Black, 1.f, 0.f);
 
-	// 오후로 고정한다. 프롤로그가 끝나면 시간이 다시 흐르고, 1장 끝의 야영지에서 해가 진다.
+	// 늦은 오후에서 시작해 시간이 계속 흐른다. 프롤로그 끝 무렵에 노을이 지고,
+	// 1장은 등불과 달빛 아래에서 걷게 된다.
 	if (TimeOfDay.IsValid())
 	{
-		TimeOfDay->SetTimeOfDay(15.5f);
-		TimeOfDay->bPaused = true;
+		TimeOfDay->SetTimeOfDay(16.f);
+		TimeOfDay->bPaused = false;
 	}
 
 	NarrationIndex = 0;
@@ -771,7 +772,7 @@ void AIsekaiPrologueDirector::Tick(float DeltaSeconds)
 		{
 			if (Anomaly)
 			{
-				Anomaly->SetGravityScaleInside(0.25f);
+				Anomaly->SetGravityScaleInside(0.5f);
 			}
 
 			// 화면이 하얗게 덮인 사이에 마법사 앞으로 옮겨 둔다.

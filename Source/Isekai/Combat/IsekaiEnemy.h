@@ -5,12 +5,19 @@
 #include "IsekaiEnemy.generated.h"
 
 class UIsekaiHealthComponent;
+class UPointLightComponent;
+class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 
 /**
- * 가장 기본적인 적. 플레이어가 가까이 오면 쫓아와서 근접 공격을 한다.
- * 공격 전에 잠깐 몸을 부풀리는 예비 동작이 있어 플레이어가 물러날 틈을 준다.
+ * 네 발 짐승 형태의 기본 적. 플레이어가 가까이 오면 쫓아와서 공격한다.
+ *
+ * 몸은 기본 도형으로 짠 뼈대다: 몸통, 머리, 다리 넷, 꼬리. 변종에 따라 목이나 뿔이 붙는다.
+ * 걷기, 공격 예비 동작, 피격 반응은 코드로 직접 움직인다. 모델과 애니메이션이 생기면
+ * Rig 아래를 통째로 스켈레탈 메시로 바꾸면 된다.
+ *
+ * 공격 전에는 몸을 일으키고 눈에 붉은빛이 들어온다. 그 사이에 물러나면 맞지 않는다.
  * 맞으면 뒤로 밀리고, 쓰러지면 조각으로 흩어진다.
  *
  * 지금은 플레이어를 향해 직선으로만 걷는다. 장애물을 돌아가는 길찾기는
@@ -37,11 +44,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	void StartChasing();
 
-	/** 멀리서 탄을 쏘는 종류로 바꾼다. 약하고 느리지만 거리를 둔다. 만든 직후에 부른다. */
+	/** 멀리서 탄을 쏘는 종류로 바꾼다. 목이 길고 몸이 가늘다. 만든 직후에 부른다. */
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	void MakeRanged();
 
-	/** 크기, 체력, 공격력을 한꺼번에 키운다. 만든 직후에 부른다. */
+	/** 크기, 체력, 공격력을 한꺼번에 키운다. 뿔이 달린다. 만든 직후에 부른다. */
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	void MakeElite();
 
@@ -88,8 +95,37 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> Placeholder;
+	/** 몸 전체의 뿌리. 이 아래가 기본 도형으로 짠 뼈대다. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TObjectPtr<USceneComponent> Rig;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TObjectPtr<UStaticMeshComponent> Torso;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TObjectPtr<UStaticMeshComponent> Head;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TObjectPtr<UStaticMeshComponent> Tail;
+
+	/** 원거리 종류에만 보이는 긴 목 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TObjectPtr<UStaticMeshComponent> Neck;
+
+	/** 큰 종류에만 보이는 뿔 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TObjectPtr<UStaticMeshComponent> HornLeft;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TObjectPtr<UStaticMeshComponent> HornRight;
+
+	/** 다리 넷의 엉덩이 관절. 앞왼쪽, 앞오른쪽, 뒤왼쪽, 뒤오른쪽 순서. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TArray<TObjectPtr<USceneComponent>> LegPivots;
+
+	/** 공격 예비 동작 때 켜지는 눈빛 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Rig")
+	TObjectPtr<UPointLightComponent> EyeGlow;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UIsekaiHealthComponent> Health;
@@ -114,11 +150,21 @@ private:
 	UFUNCTION()
 	void HandleDied(AActor* Killer);
 
+	UStaticMeshComponent* AddPart(const TCHAR* PartName, UStaticMesh* Shape, USceneComponent* Parent,
+		const FVector& Location, const FRotator& Rotation, const FVector& Scale);
+
 	void SetState(EState NewState);
+	void UpdateRig(float DeltaSeconds);
 	void SpawnShards();
 	void FireShot(const APawn* Target);
 
 	EState State = EState::Idle;
 	float StateTime = 0.f;
-	FVector PlaceholderBaseScale = FVector::OneVector;
+
+	// 뼈대를 움직이는 데 쓰는 값들
+	float WalkPhase = 0.f;
+	float LegSwing = 0.f;
+	float PosePitch = 0.f;
+	float PoseScale = 1.f;
+	float HitPunch = 0.f;
 };

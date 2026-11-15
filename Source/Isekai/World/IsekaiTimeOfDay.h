@@ -9,8 +9,12 @@ class ADirectionalLight;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FIsekaiHourChanged, int32, NewHour);
 
 /**
- * 게임 안의 하루를 흘려 보내고 태양(디렉셔널 라이트)을 그에 맞춰 돌린다.
+ * 게임 안의 하루를 흘려 보내고, 시각에 맞춰 빛을 바꾼다.
+ *
  * 6시에 해가 뜨고 12시에 머리 위, 18시에 진다.
+ * 해가 낮을수록 빛이 붉고 약해진다. 해가 지면 같은 빛이 달빛 노릇을 한다: 푸르고 훨씬 어둡다.
+ * 하늘색과 주변 밝기는 스카이 애트머스피어와 스카이 라이트가 이 빛을 따라 스스로 바꾼다.
+ *
  * 레벨에 없으면 게임 모드가 하나를 자동으로 만든다.
  */
 UCLASS()
@@ -43,7 +47,7 @@ public:
 
 	/** 게임 속 하루가 현실 시간으로 몇 분인지 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Time", meta = (ClampMin = "0.1"))
-	float DayLengthMinutes = 20.f;
+	float DayLengthMinutes = 24.f;
 
 	/** 시작 시각 (0~24) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Time", meta = (ClampMin = "0", ClampMax = "24"))
@@ -57,9 +61,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Time")
 	bool bPaused = false;
 
+	/** 한낮의 햇빛 색 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
+	FLinearColor NoonColor = FLinearColor(1.f, 0.96f, 0.9f);
+
+	/** 해가 뜨고 질 때의 햇빛 색 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
+	FLinearColor HorizonColor = FLinearColor(1.f, 0.45f, 0.2f);
+
+	/** 달빛 색 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light")
+	FLinearColor MoonColor = FLinearColor(0.4f, 0.55f, 1.f);
+
+	/** 달빛의 세기. 한낮 햇빛을 1로 봤을 때의 비율. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Light", meta = (ClampMin = "0", ClampMax = "1"))
+	float MoonStrength = 0.08f;
+
 protected:
 	virtual void BeginPlay() override;
 
 private:
-	void ApplySunRotation();
+	void ApplyLighting();
+
+	/** 레벨에 놓인 디렉셔널 라이트의 원래 세기. 한낮의 세기로 삼는다. */
+	float NoonIntensity = 6.f;
 };

@@ -13,13 +13,18 @@ class UIsekaiInteractionComponent;
 class UIsekaiObjectiveComponent;
 class UPointLightComponent;
 class UIsekaiSpellComponent;
+class USpringArmComponent;
+class UStaticMeshComponent;
 struct FInputActionValue;
 
 /**
- * 1인칭 플레이어 캐릭터.
+ * 플레이어 캐릭터. 1인칭이 기본이고 V로 3인칭을 오간다.
  * 입력 어셋이 아직 없으므로 키 매핑을 코드에서 직접 만든다.
  * WASD 이동, 마우스 시점, Space 점프, Shift 달리기, E 상호작용,
- * 마우스 왼쪽 공격 마법, 마우스 오른쪽 순간 가속, F 빛.
+ * 마우스 왼쪽 공격 마법, 마우스 오른쪽 순간 가속, F 빛, V 시점 전환.
+ *
+ * 3인칭은 등 뒤 위쪽에서 따라가는 카메라다. 몸은 움직이는 쪽을 보고, 카메라는 마우스로 돌린다.
+ * 캐릭터 모델이 없어서 몸은 기본 도형으로 대신한다.
  */
 UCLASS()
 class ISEKAI_API AIsekaiCharacter : public ACharacter
@@ -57,6 +62,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Isekai")
 	bool HasStoryFlag(FName Flag) const { return StoryFlags.Contains(Flag); }
 
+	/** 1인칭과 3인칭을 오간다. */
+	UFUNCTION(BlueprintCallable, Category = "Isekai")
+	void SetThirdPerson(bool bInThirdPerson);
+
+	UFUNCTION(BlueprintPure, Category = "Isekai")
+	bool IsThirdPerson() const { return bThirdPerson; }
+
 	/** 화면을 흔든다. 1이 강한 충격. 이미 더 세게 흔들리고 있으면 무시된다. */
 	UFUNCTION(BlueprintCallable, Category = "Isekai")
 	void AddCameraShake(float Strength);
@@ -87,13 +99,32 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float SprintSpeed = 550.f;
 
+	/** 착지 직전에 누른 점프를 이 시간(초) 동안 기억했다가 착지하자마자 뛴다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement", meta = (ClampMin = "0"))
+	float JumpBufferSeconds = 0.15f;
+
+	/** 3인칭일 때 카메라가 몸에서 떨어지는 거리 (cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Camera", meta = (ClampMin = "100"))
+	float ThirdPersonDistance = 430.f;
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
 	virtual void PawnClientRestart() override;
 
+	/** 카메라를 매단 팔. 길이가 0이면 1인칭, 길면 등 뒤에서 본다. 벽에 닿으면 스스로 짧아진다. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<USpringArmComponent> CameraBoom;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UCameraComponent> Camera;
+
+	/** 3인칭에서 보이는 임시 몸 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> BodyMesh;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> HeadMesh;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UIsekaiInteractionComponent> Interaction;
@@ -130,6 +161,9 @@ private:
 	void HandleAttackCast();
 
 	FVector CameraBaseLocation = FVector::ZeroVector;
+	bool bThirdPerson = false;
+	bool bBodyShown = false;
+	float JumpBufferLeft = 0.f;
 	float ShakeStrength = 0.f;
 	float TargetFOV = 90.f;
 
@@ -144,6 +178,7 @@ private:
 	void OnCastAttack();
 	void OnCastDash();
 	void OnToggleLight();
+	void OnToggleView();
 	void OnChoice1();
 	void OnChoice2();
 	void OnChoice3();
@@ -176,6 +211,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> ToggleLightAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ToggleViewAction;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> Choice1Action;
