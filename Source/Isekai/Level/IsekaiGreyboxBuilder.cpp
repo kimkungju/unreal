@@ -1,7 +1,9 @@
-﻿#include "CoreMinimal.h"
+﻿#include "Level/IsekaiGreyboxBuilder.h"
 
-// 첫 구역의 그레이박스를 에디터 레벨 안에 만들어 주는 콘솔 명령.
-// 에디터 아래쪽 Cmd 칸에 Isekai.BuildGreybox 를 입력하면 실행된다.
+// 첫 구역의 그레이박스를 만든다.
+//
+// 게임 모드가 Play를 시작할 때마다 자동으로 부르므로 평소에는 따로 할 일이 없다.
+// 에디터 레벨에 직접 만들어 두고 싶으면 아래쪽 Cmd 칸에 Isekai.BuildGreybox 를 입력한다.
 //
 // 만든 액터에는 모두 IsekaiGreybox 태그가 붙는다. 다시 실행하면 그 태그가 붙은
 // 액터를 전부 지우고 새로 만든다. 직접 놓은 액터는 건드리지 않는다.
@@ -80,6 +82,12 @@ namespace IsekaiGreybox
 			AStaticMeshActor* Actor = Spawn<AStaticMeshActor>(Center, Rotation, Label, Folder);
 			if (Actor)
 			{
+				// 게임이 도는 중에는 고정(Static) 메시의 모양과 크기를 바꿀 수 없다.
+				if (World->IsGameWorld())
+				{
+					Actor->SetMobility(EComponentMobility::Movable);
+				}
+
 				Actor->GetStaticMeshComponent()->SetStaticMesh(Shape);
 				Actor->SetActorScale3D(Size / 100.0);
 			}
@@ -232,12 +240,11 @@ namespace IsekaiGreybox
 		}
 	}
 
-	void Build(UWorld* World)
+	bool Build(UWorld* World)
 	{
-		if (!World || World->WorldType != EWorldType::Editor)
+		if (!World)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("Isekai.BuildGreybox: stop Play first. This command only works in the editor level."));
-			return;
+			return false;
 		}
 
 		FBuilder Builder;
@@ -249,7 +256,7 @@ namespace IsekaiGreybox
 		if (!Builder.Cube || !Builder.Cylinder || !Builder.Cone)
 		{
 			UE_LOG(LogTemp, Error, TEXT("Isekai.BuildGreybox: could not load the engine basic shapes."));
-			return;
+			return false;
 		}
 
 		ClearPrevious(World);
@@ -512,7 +519,11 @@ namespace IsekaiGreybox
 
 			if (PlayerStart)
 			{
-				PlayerStart->SetActorLocationAndRotation(StartLocation, StartRotation);
+				// 게임이 도는 중에는 시작 지점을 옮길 수 없다. 그때는 이야기 진행이 플레이어를 직접 옮긴다.
+				if (!World->IsGameWorld())
+				{
+					PlayerStart->SetActorLocationAndRotation(StartLocation, StartRotation);
+				}
 			}
 			else
 			{
@@ -586,14 +597,34 @@ namespace IsekaiGreybox
 			UE_LOG(LogTemp, Warning, TEXT("Isekai.BuildGreybox: this level has no sun. Create the level from the Basic template (File > New Level > Basic) and run again."));
 		}
 
-		World->MarkPackageDirty();
-		UE_LOG(LogTemp, Display, TEXT("Isekai.BuildGreybox: placed %d actors. Save the level with Ctrl+S."), Builder.Count);
+		if (!World->IsGameWorld())
+		{
+			World->MarkPackageDirty();
+		}
+
+		UE_LOG(LogTemp, Display, TEXT("Isekai.BuildGreybox: placed %d actors."), Builder.Count);
+		return true;
+	}
+
+	void RunBuildCommand(UWorld* World)
+	{
+		Build(World);
 	}
 
 	FAutoConsoleCommandWithWorld BuildCommand(
 		TEXT("Isekai.BuildGreybox"),
 		TEXT("Builds the first-area greybox in the current editor level. Re-running replaces what it built before."),
-		FConsoleCommandWithWorldDelegate::CreateStatic(&Build));
+		FConsoleCommandWithWorldDelegate::CreateStatic(&RunBuildCommand));
+}
+
+#else
+
+namespace IsekaiGreybox
+{
+	bool Build(UWorld* World)
+	{
+		return false;
+	}
 }
 
 #endif // WITH_EDITOR

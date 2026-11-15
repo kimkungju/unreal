@@ -19,5 +19,15 @@ public class Isekai : ModuleRules
 			"Slate",
 			"SlateCore"
 		});
+
+		// 에디터에서만 쓰는 기능: 소리 파일 자동 가져오기.
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.AddRange(new string[]
+			{
+				"UnrealEd",
+				"AssetTools"
+			});
+		}
 	}
 }

@@ -36,16 +36,24 @@ namespace IsekaiAudio
 			return nullptr;
 		}
 
-		// 없는 어셋을 불러오려 하면 경고가 쌓이므로 있는지부터 본다.
 		const FString PackagePath = FString::Printf(TEXT("/Game/Audio/%s"), Name);
-		if (!FPackageName::DoesPackageExist(PackagePath))
+		const FString ObjectPath = FString::Printf(TEXT("%s.%s"), *PackagePath, Name);
+
+		// 방금 가져와 아직 저장하지 않은 어셋은 메모리에만 있다. 그것부터 찾는다.
+		USoundBase* Sound = FindObject<USoundBase>(nullptr, *ObjectPath);
+
+		if (!Sound)
 		{
-			Missing.Add(Key);
-			return nullptr;
+			// 없는 어셋을 불러오려 하면 경고가 쌓이므로 파일이 있는지부터 본다.
+			if (!FPackageName::DoesPackageExist(PackagePath))
+			{
+				Missing.Add(Key);
+				return nullptr;
+			}
+
+			Sound = LoadObject<USoundBase>(nullptr, *ObjectPath);
 		}
 
-		const FString ObjectPath = FString::Printf(TEXT("%s.%s"), *PackagePath, Name);
-		USoundBase* Sound = LoadObject<USoundBase>(nullptr, *ObjectPath);
 		if (!Sound)
 		{
 			Missing.Add(Key);

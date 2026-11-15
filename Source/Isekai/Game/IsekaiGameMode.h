@@ -12,6 +12,15 @@ class ISEKAI_API AIsekaiGameMode : public AGameModeBase
 public:
 	AIsekaiGameMode();
 
+	virtual void InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage) override;
+
+	/**
+	 * 켜면 게임이 시작될 때마다 첫 구역의 그레이박스를 코드로 새로 만든다.
+	 * 레벨을 손으로 저장해 둘 필요가 없어진다. 직접 꾸민 레벨로 넘어가면 끈다.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bBuildGreyboxOnPlay = true;
+
 	/** 레벨에 허수아비가 하나도 없으면 시작 지점 앞에 3개를 만든다. 시험용. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 	bool bSpawnTestDummies = true;

@@ -14,6 +14,12 @@ class USoundBase;
  */
 namespace IsekaiAudio
 {
+	/**
+	 * Content/Audio의 WAV 중 아직 어셋이 아닌 것을 가져온다. 에디터에서만 동작한다.
+	 * 가져온 어셋은 저장하기 전까지 메모리에만 있다. 에디터를 닫을 때 저장할지 묻는다.
+	 */
+	ISEKAI_API void ImportMissingSources();
+
 	/** "없는 어셋" 기록을 지운다. 새로 가져온 어셋을 다음 실행에서 찾게 한다. */
 	ISEKAI_API void ResetCache();
 

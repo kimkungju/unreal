@@ -7,6 +7,7 @@
 #include "Dialogue/IsekaiNPC.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
+#include "Level/IsekaiGreyboxBuilder.h"
 #include "Player/IsekaiCharacter.h"
 #include "UI/IsekaiHUD.h"
 #include "World/IsekaiTimeOfDay.h"
@@ -15,6 +16,20 @@ AIsekaiGameMode::AIsekaiGameMode()
 {
 	DefaultPawnClass = AIsekaiCharacter::StaticClass();
 	HUDClass = AIsekaiHUD::StaticClass();
+}
+
+void AIsekaiGameMode::InitGame(const FString& MapName, const FString& Options, FString& ErrorMessage)
+{
+	Super::InitGame(MapName, Options, ErrorMessage);
+
+	// 플레이어가 들어오기 전, 레벨의 액터들이 시작되기 전이다.
+	// 여기서 소리를 가져오고 구역을 만들어 두면 사람이 따로 해 줄 일이 없다.
+	IsekaiAudio::ImportMissingSources();
+
+	if (bBuildGreyboxOnPlay)
+	{
+		IsekaiGreybox::Build(GetWorld());
+	}
 }
 
 void AIsekaiGameMode::BeginPlay()

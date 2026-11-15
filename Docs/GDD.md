@@ -89,12 +89,22 @@
 
 ## 10. 작업 방식
 
-Claude가 코드를 올리면 경주는 에디터를 닫고, GitHub Desktop에서 Pull을 한 뒤,
-`RebuildAndOpen.bat`을 실행한다. `Isekai.uproject`를 직접 열면 새 코드가 빌드되지 않는다.
+Claude가 코드를 올리면 경주는 세 가지만 한다.
+
+1. 에디터를 닫는다
+2. GitHub Desktop에서 Pull을 한다
+3. `RebuildAndOpen.bat`을 실행하고, 에디터가 열리면 Play를 누른다
+
+`Isekai.uproject`를 직접 열면 새 코드가 빌드되지 않는다.
+
+Play를 누르는 순간 게임 모드가 첫 구역의 그레이박스를 코드로 새로 만들고,
+`Content/Audio`의 WAV 중 아직 어셋이 아닌 것을 가져온다. 그래서 콘솔 명령 입력, 레벨 저장,
+소리 가져오기를 사람이 할 필요가 없다. 직접 꾸민 레벨로 넘어갈 때는 게임 모드의
+`Build Greybox On Play`를 끈다.
 
 ## 11. 첫 구역 그레이박스
 
-에디터 콘솔에서 `Isekai.BuildGreybox`를 실행하면 현재 레벨에 만들어진다.
+Play를 시작할 때마다 자동으로 만들어진다. 에디터 레벨에 직접 만들어 저장해 두고 싶으면 콘솔에서 `Isekai.BuildGreybox`를 실행한다.
 만든 액터에는 `IsekaiGreybox` 태그가 붙고, 다시 실행하면 그 액터만 지우고 새로 만든다.
 그레이박스 액터를 직접 고치면 다음 실행 때 사라지므로, 고칠 내용은 Claude에게 전달해 코드에 반영한다.
 아트 작업용 액터는 태그가 없으므로 남는다.
