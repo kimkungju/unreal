@@ -36,6 +36,7 @@ void AIsekaiExaminable::Interact_Implementation(AActor* Interactor)
 	UIsekaiDialogueComponent* Dialogue = Interactor ? Interactor->FindComponentByClass<UIsekaiDialogueComponent>() : nullptr;
 	if (Dialogue && Dialogue->StartDialogue(Lines))
 	{
+		bExamined = true;
 		Dialogue->SetObjectiveOnEnd(ObjectiveAfter);
 	}
 }

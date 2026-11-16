@@ -29,7 +29,7 @@ void UIsekaiHealthComponent::ResetHealth()
 void UIsekaiHealthComponent::HandleAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType,
 	AController* InstigatedBy, AActor* DamageCauser)
 {
-	if (Damage <= 0.f || IsDead())
+	if (Damage <= 0.f || IsDead() || bInvulnerable)
 	{
 		return;
 	}

@@ -32,6 +32,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health", meta = (ClampMin = "1"))
 	float MaxHealth = 100.f;
 
+	/** 켜면 맞아도 체력이 줄지 않는다. 연습 상대나 연출에 쓴다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+	bool bInvulnerable = false;
+
 	UPROPERTY(BlueprintAssignable, Category = "Health")
 	FIsekaiHealthChanged OnHealthChanged;
 

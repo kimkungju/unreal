@@ -1,5 +1,7 @@
 ﻿#include "Combat/IsekaiTargetDummy.h"
 
+#include "Audio/IsekaiAudio.h"
+
 #include "Combat/IsekaiHealthComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Engine.h"
@@ -22,6 +24,7 @@ AIsekaiTargetDummy::AIsekaiTargetDummy()
 	}
 
 	Health = CreateDefaultSubobject<UIsekaiHealthComponent>(TEXT("Health"));
+	Health->MaxHealth = 50.f;
 }
 
 void AIsekaiTargetDummy::BeginPlay()
@@ -44,12 +47,19 @@ void AIsekaiTargetDummy::HandleHealthChanged(float NewHealth, float Delta)
 void AIsekaiTargetDummy::HandleDied(AActor* Killer)
 {
 	SetActive(false);
-	GetWorldTimerManager().SetTimer(RespawnTimer, this, &AIsekaiTargetDummy::Respawn, RespawnDelay, false);
+	bBroken = true;
+	IsekaiAudio::Play(this, TEXT("SFX_EnemyDie"), 0.7f, 0.1f);
+
+	if (bRespawn)
+	{
+		GetWorldTimerManager().SetTimer(RespawnTimer, this, &AIsekaiTargetDummy::Respawn, RespawnDelay, false);
+	}
 }
 
 void AIsekaiTargetDummy::Respawn()
 {
 	Health->ResetHealth();
+	bBroken = false;
 	SetActive(true);
 }
 

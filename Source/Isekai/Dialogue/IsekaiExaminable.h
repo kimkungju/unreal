@@ -34,6 +34,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Examinable")
 	FText ObjectiveAfter;
 
+	/** 한 번이라도 살펴봤는지. 이야기 진행이 읽는다. */
+	UFUNCTION(BlueprintPure, Category = "Examinable")
+	bool WasExamined() const { return bExamined; }
+
+private:
+	bool bExamined = false;
+
+public:
+
 protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> Mesh;

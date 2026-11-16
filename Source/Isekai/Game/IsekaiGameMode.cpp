@@ -1,5 +1,6 @@
 ﻿#include "Game/IsekaiGameMode.h"
 
+#include "Assets/IsekaiAssets.h"
 #include "Audio/IsekaiAudio.h"
 
 #include "Combat/IsekaiEnemy.h"
@@ -25,6 +26,7 @@ void AIsekaiGameMode::InitGame(const FString& MapName, const FString& Options, F
 	// 플레이어가 들어오기 전, 레벨의 액터들이 시작되기 전이다.
 	// 여기서 소리를 가져오고 구역을 만들어 두면 사람이 따로 해 줄 일이 없다.
 	IsekaiAudio::ImportMissingSources();
+	IsekaiAssets::ImportMissingFiles(TEXT("Story"), { TEXT("png"), TEXT("jpg") });
 
 	if (bBuildGreyboxOnPlay)
 	{

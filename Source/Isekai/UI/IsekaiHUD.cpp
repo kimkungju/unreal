@@ -6,6 +6,7 @@
 #include "Dialogue/IsekaiDialogueComponent.h"
 #include "Dialogue/IsekaiObjectiveComponent.h"
 #include "Engine/GameViewportClient.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Interaction/IsekaiInteractionComponent.h"
@@ -16,6 +17,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/ColText/STextBlock.h"
@@ -184,6 +186,16 @@ void AIsekaiHUD::Tick(float DeltaSeconds)
 	TitleAlpha = FMath::FInterpConstantTo(TitleAlpha, TitleTarget, RealDelta, 1.2f);
 	LetterboxAmount = FMath::FInterpTo(LetterboxAmount, bLetterbox ? 1.f : 0.f, RealDelta, 4.f);
 	BarkTimeLeft = FMath::Max(0.f, BarkTimeLeft - RealDelta);
+	ToastTimeLeft = FMath::Max(0.f, ToastTimeLeft - RealDelta);
+
+	// 그림 컷: 바뀔 그림이 기다리고 있으면 지금 그림이 다 사라진 뒤에 바꾼다.
+	CutImageAlpha = FMath::FInterpConstantTo(CutImageAlpha, CutImageTarget, RealDelta, 2.2f);
+	CutSubtitleAlpha = FMath::FInterpConstantTo(CutSubtitleAlpha, CutSubtitleTarget, RealDelta, 3.f);
+	CutTime += RealDelta;
+	if (bHasPendingShot && CutImageAlpha <= 0.01f)
+	{
+		ApplyPendingShot();
+	}
 
 	// 깎인 체력은 0.5초 머물렀다가 줄어든다.
 	auto UpdateLag = [RealDelta](float Current, float& InLag, float& Hold, float& Last)
@@ -278,6 +290,109 @@ void AIsekaiHUD::SetTitle(const FText& InTitle, const FText& InSubtitle)
 		SubtitleText = InSubtitle;
 		TitleTarget = 1.f;
 	}
+}
+
+void AIsekaiHUD::BeginCutscene()
+{
+	bCutsceneActive = true;
+	CutImageAlpha = 0.f;
+	CutImageTarget = 0.f;
+	CutSubtitle = FText::GetEmpty();
+	CutSubtitleAlpha = 0.f;
+	CutSubtitleTarget = 0.f;
+}
+
+void AIsekaiHUD::EndCutscene()
+{
+	bCutsceneActive = false;
+	bHasPendingShot = false;
+	CutTexture = nullptr;
+	PendingTexture = nullptr;
+	CutImageAlpha = 0.f;
+	CutImageTarget = 0.f;
+}
+
+void AIsekaiHUD::ShowCutsceneShot(UTexture2D* Texture, const FText& Placeholder, const FVector2D& PanFrom, const FVector2D& PanTo,
+	float ZoomFrom, float ZoomTo, float Duration)
+{
+	PendingTexture = Texture;
+	PendingPlaceholder = Placeholder;
+	PendingPanFrom = PanFrom;
+	PendingPanTo = PanTo;
+	PendingZoomFrom = ZoomFrom;
+	PendingZoomTo = ZoomTo;
+	PendingDuration = FMath::Max(0.1f, Duration);
+	bHasPendingShot = true;
+
+	// 지금 그림을 먼저 걷어 낸다. 다 걷히면 Tick이 새 그림으로 바꾼다.
+	CutImageTarget = 0.f;
+}
+
+void AIsekaiHUD::ApplyPendingShot()
+{
+	bHasPendingShot = false;
+
+	CutTexture = PendingTexture;
+	PendingTexture = nullptr;
+	CutPlaceholder = PendingPlaceholder;
+	CutPanFrom = PendingPanFrom;
+	CutPanTo = PendingPanTo;
+	CutZoomFrom = PendingZoomFrom;
+	CutZoomTo = PendingZoomTo;
+	CutDuration = PendingDuration;
+	CutTime = 0.f;
+
+	CutBrush = FSlateBrush();
+	if (CutTexture)
+	{
+		CutBrush.SetResourceObject(CutTexture);
+		const float Width = CutTexture->GetSizeX() > 0 ? static_cast<float>(CutTexture->GetSizeX()) : 1920.f;
+		const float Height = CutTexture->GetSizeY() > 0 ? static_cast<float>(CutTexture->GetSizeY()) : 1080.f;
+		CutBrush.ImageSize = FVector2D(Width, Height);
+		CutBrush.DrawAs = ESlateBrushDrawType::Image;
+	}
+
+	CutImageTarget = 1.f;
+}
+
+TOptional<FSlateRenderTransform> AIsekaiHUD::GetCutsceneTransform() const
+{
+	// 처음과 끝에서 부드럽게 멈추는 진행도
+	const float Linear = FMath::Clamp(CutTime / CutDuration, 0.f, 1.f);
+	const float Progress = FMath::SmoothStep(0.f, 1.f, Linear);
+
+	const float Zoom = FMath::Lerp(CutZoomFrom, CutZoomTo, Progress);
+	const FVector2D Pan = FMath::Lerp(CutPanFrom, CutPanTo, Progress);
+	return FSlateRenderTransform(Zoom, FVector2f(static_cast<float>(Pan.X), static_cast<float>(Pan.Y)));
+}
+
+void AIsekaiHUD::SetCutsceneSubtitle(const FText& InText)
+{
+	if (InText.IsEmpty())
+	{
+		CutSubtitleTarget = 0.f;
+	}
+	else
+	{
+		CutSubtitle = InText;
+		CutSubtitleTarget = 1.f;
+		CutSubtitleAlpha = FMath::Min(CutSubtitleAlpha, 0.2f);
+	}
+}
+
+void AIsekaiHUD::ShowToast(const FText& InHeader, const FText& InBody, float Duration)
+{
+	ToastHeader = InHeader;
+	ToastBody = InBody;
+	ToastDuration = FMath::Max(0.5f, Duration);
+	ToastTimeLeft = ToastDuration;
+}
+
+float AIsekaiHUD::GetToastAlpha() const
+{
+	// 0.3초에 걸쳐 나타나고 마지막 0.5초에 걸쳐 사라진다.
+	const float Elapsed = ToastDuration - ToastTimeLeft;
+	return FMath::Clamp(FMath::Min(Elapsed / 0.3f, ToastTimeLeft / 0.5f), 0.f, 1.f);
 }
 
 void AIsekaiHUD::ShowBark(const FText& InSpeaker, const FText& InText, float Duration)
@@ -409,6 +524,24 @@ bool AIsekaiHUD::CanAffordLight() const
 {
 	const AIsekaiCharacter* Character = GetCharacter();
 	return Character && (Character->IsLightOn() || Character->GetSpells()->GetMana() >= Character->GetSpells()->LightManaCost);
+}
+
+bool AIsekaiHUD::IsAttackLearned() const
+{
+	const AIsekaiCharacter* Character = GetCharacter();
+	return Character && Character->bAttackLearned;
+}
+
+bool AIsekaiHUD::IsDashLearned() const
+{
+	const AIsekaiCharacter* Character = GetCharacter();
+	return Character && Character->bDashLearned;
+}
+
+bool AIsekaiHUD::IsLightLearned() const
+{
+	const AIsekaiCharacter* Character = GetCharacter();
+	return Character && Character->bLightLearned;
 }
 
 bool AIsekaiHUD::IsLightOn() const
@@ -960,9 +1093,13 @@ void AIsekaiHUD::BeginPlay()
 			.VAlign(VAlign_Bottom)
 			.Padding(14.f, 0.f, 0.f, 0.f)
 			[
-				SkillCell(TEXT("F"), TEXT("빛"), 46.f, nullptr,
-					[W]() { return W.IsValid() && W->CanAffordLight(); },
-					[W]() { return W.IsValid() && W->IsLightOn(); })
+				SNew(SBox)
+				.Visibility_Lambda([W]() { return W.IsValid() && W->IsLightLearned() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+				[
+					SkillCell(TEXT("F"), TEXT("빛"), 46.f, nullptr,
+						[W]() { return W.IsValid() && W->CanAffordLight(); },
+						[W]() { return W.IsValid() && W->IsLightOn(); })
+				]
 			]
 
 			+ SHorizontalBox::Slot()
@@ -970,10 +1107,14 @@ void AIsekaiHUD::BeginPlay()
 			.VAlign(VAlign_Bottom)
 			.Padding(14.f, 0.f, 0.f, 0.f)
 			[
-				SkillCell(TEXT("우클릭"), TEXT("가속"), 52.f,
-					[W]() { return W.IsValid() ? W->GetDashCooldown() : 0.f; },
-					[W]() { return W.IsValid() && W->CanAffordDash(); },
-					nullptr)
+				SNew(SBox)
+				.Visibility_Lambda([W]() { return W.IsValid() && W->IsDashLearned() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+				[
+					SkillCell(TEXT("우클릭"), TEXT("가속"), 52.f,
+						[W]() { return W.IsValid() ? W->GetDashCooldown() : 0.f; },
+						[W]() { return W.IsValid() && W->CanAffordDash(); },
+						nullptr)
+				]
 			]
 
 			+ SHorizontalBox::Slot()
@@ -981,10 +1122,14 @@ void AIsekaiHUD::BeginPlay()
 			.VAlign(VAlign_Bottom)
 			.Padding(18.f, 0.f, 0.f, 0.f)
 			[
-				SkillCell(TEXT("좌클릭"), TEXT("마법탄"), 68.f,
-					[W]() { return W.IsValid() ? W->GetAttackCooldown() : 0.f; },
-					[W]() { return W.IsValid() && W->CanAffordAttack(); },
-					nullptr)
+				SNew(SBox)
+				.Visibility_Lambda([W]() { return W.IsValid() && W->IsAttackLearned() ? EVisibility::HitTestInvisible : EVisibility::Collapsed; })
+				[
+					SkillCell(TEXT("좌클릭"), TEXT("마법탄"), 68.f,
+						[W]() { return W.IsValid() ? W->GetAttackCooldown() : 0.f; },
+						[W]() { return W.IsValid() && W->CanAffordAttack(); },
+						nullptr)
+				]
 			]
 		];
 
@@ -1277,6 +1422,241 @@ void AIsekaiHUD::BeginPlay()
 					{
 						return W.IsValid() ? W->GetHintText() : FText::GetEmpty();
 					})
+				]
+			]
+		];
+
+	// 위 가운데: 성장 알림
+	Root->AddSlot()
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Top)
+		.Padding(0.f, SafeY + 90.f, 0.f, 0.f)
+		[
+			SNew(SVerticalBox)
+			.Visibility_Lambda([W]()
+			{
+				return W.IsValid() && W->GetToastAlpha() > 0.f ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+			})
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Center)
+			[
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					Pip(ColGold, 8.f)
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(12.f, 0.f)
+				[
+					SNew(STextBlock)
+					.Font(Font("Bold", 15, 500))
+					.ShadowOffset(Shadow)
+					.ShadowColorAndOpacity(ShadowColor)
+					.ColorAndOpacity_Lambda([W]()
+					{
+						return FSlateColor(WithAlpha(ColGold, W.IsValid() ? W->GetToastAlpha() : 0.f));
+					})
+					.Text_Lambda([W]()
+					{
+						return W.IsValid() ? W->GetToastHeader() : FText::GetEmpty();
+					})
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					Pip(ColGold, 8.f)
+				]
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Center)
+			.Padding(0.f, 10.f, 0.f, 0.f)
+			[
+				SNew(STextBlock)
+				.Font(Font("Regular", 20))
+				.ShadowOffset(Shadow)
+				.ShadowColorAndOpacity(ShadowColor)
+				.ColorAndOpacity_Lambda([W]()
+				{
+					return FSlateColor(WithAlpha(ColText, W.IsValid() ? W->GetToastAlpha() : 0.f));
+				})
+				.Text_Lambda([W]()
+				{
+					return W.IsValid() ? W->GetToastBody() : FText::GetEmpty();
+				})
+			]
+		];
+
+	// ================= 그림 컷 =================
+	Root->AddSlot()
+		[
+			SNew(SOverlay)
+			.Visibility_Lambda([W]()
+			{
+				return W.IsValid() && W->IsCutsceneActive() ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+			})
+
+			// 바탕
+			+ SOverlay::Slot()
+			[
+				SNew(SImage)
+				.Image(White())
+				.ColorAndOpacity(FSlateColor(FLinearColor::Black))
+			]
+
+			// 그림: 화면을 꽉 채우도록 잘라 맞춘 뒤 천천히 밀고 당긴다.
+			+ SOverlay::Slot()
+			[
+				SNew(SBox)
+				.Visibility_Lambda([W]()
+				{
+					return W.IsValid() && W->HasCutsceneImage() ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+				})
+				.RenderTransform_Lambda([W]()
+				{
+					return W.IsValid() ? W->GetCutsceneTransform() : TOptional<FSlateRenderTransform>();
+				})
+				.RenderTransformPivot(FVector2D(0.5f, 0.5f))
+				[
+					SNew(SScaleBox)
+					.Stretch(EStretch::ScaleToFill)
+					[
+						SNew(SImage)
+						.Image_Lambda([W]() -> const FSlateBrush*
+						{
+							return W.IsValid() ? W->GetCutsceneBrush() : nullptr;
+						})
+						.ColorAndOpacity_Lambda([W]()
+						{
+							return FSlateColor(FLinearColor(1.f, 1.f, 1.f, W.IsValid() ? W->GetCutsceneImageAlpha() : 0.f));
+						})
+					]
+				]
+			]
+
+			// 그림이 없을 때: 어떤 그림이 들어갈 자리인지 설명
+			+ SOverlay::Slot()
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
+			.Padding(0.f, 0.f, 0.f, 140.f)
+			[
+				SNew(SBox)
+				.WidthOverride(900.f)
+				.Visibility_Lambda([W]()
+				{
+					return W.IsValid() && !W->HasCutsceneImage() ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+				})
+				[
+					SNew(SVerticalBox)
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.HAlign(HAlign_Center)
+					[
+						SNew(STextBlock)
+						.Font(Font("Bold", 11, 400))
+						.ColorAndOpacity_Lambda([W]()
+						{
+							return FSlateColor(WithAlpha(ColGold, 0.6f * (W.IsValid() ? W->GetCutsceneImageAlpha() : 0.f)));
+						})
+						.Text(FText::FromString(TEXT("그림 자리")))
+					]
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.HAlign(HAlign_Center)
+					.Padding(0.f, 14.f, 0.f, 0.f)
+					[
+						SNew(STextBlock)
+						.Font(Font("Regular", 20))
+						.Justification(ETextJustify::Center)
+						.AutoWrapText(true)
+						.ColorAndOpacity_Lambda([W]()
+						{
+							return FSlateColor(WithAlpha(ColTextDim, W.IsValid() ? W->GetCutsceneImageAlpha() : 0.f));
+						})
+						.Text_Lambda([W]()
+						{
+							return W.IsValid() ? W->GetCutscenePlaceholder() : FText::GetEmpty();
+						})
+					]
+				]
+			]
+
+			// 자막 뒤를 어둡게
+			+ SOverlay::Slot()
+			.VAlign(VAlign_Bottom)
+			[
+				SNew(SBox)
+				.HeightOverride(240.f)
+				[
+					SNew(SImage)
+					.Image(White())
+					.ColorAndOpacity(FSlateColor(FLinearColor(0.f, 0.f, 0.f, 0.35f)))
+				]
+			]
+
+			// 자막
+			+ SOverlay::Slot()
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Bottom)
+			.Padding(0.f, 0.f, 0.f, SafeY + 70.f)
+			[
+				SNew(SBox)
+				.MaxDesiredWidth(1200.f)
+				[
+					SNew(STextBlock)
+					.Font(Font("Regular", 26, 60))
+					.Justification(ETextJustify::Center)
+					.AutoWrapText(true)
+					.ShadowOffset(Shadow)
+					.ShadowColorAndOpacity(ShadowColor)
+					.ColorAndOpacity_Lambda([W]()
+					{
+						return FSlateColor(WithAlpha(ColText, W.IsValid() ? W->GetCutsceneSubtitleAlpha() : 0.f));
+					})
+					.Text_Lambda([W]()
+					{
+						return W.IsValid() ? W->GetCutsceneSubtitle() : FText::GetEmpty();
+					})
+				]
+			]
+
+			// 넘기기 안내
+			+ SOverlay::Slot()
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Bottom)
+			.Padding(SafeX, SafeY)
+			[
+				SNew(SHorizontalBox)
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				[
+					KeyBox(FText::FromString(TEXT("E")), 11)
+				]
+
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(10.f, 0.f, 0.f, 0.f)
+				[
+					SNew(STextBlock)
+					.Font(Font("Regular", 13, 100))
+					.ColorAndOpacity(FSlateColor(ColTextDim))
+					.Text(FText::FromString(TEXT("넘기기")))
 				]
 			]
 		];

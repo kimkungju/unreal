@@ -94,6 +94,16 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Isekai")
 	bool bCanCastDash = true;
 
+	/** 이야기에서 배운 기술. 배우기 전에는 쓸 수 없고 화면에도 나오지 않는다. */
+	UPROPERTY(BlueprintReadWrite, Category = "Isekai")
+	bool bAttackLearned = true;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Isekai")
+	bool bDashLearned = true;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Isekai")
+	bool bLightLearned = true;
+
 	/** 마지막으로 맞은 시각 (월드 시간, 초). 맞은 적이 없으면 아주 작은 값. */
 	float GetLastDamageTime() const { return LastDamageTime; }
 

@@ -422,7 +422,7 @@ void AIsekaiCharacter::OnInteract()
 
 void AIsekaiCharacter::OnCastAttack()
 {
-	if (IsInDialogue() || !bCanCastAttack)
+	if (IsInDialogue() || !bCanCastAttack || !bAttackLearned)
 	{
 		return;
 	}
@@ -438,7 +438,7 @@ void AIsekaiCharacter::OnCastAttack()
 
 void AIsekaiCharacter::OnCastDash()
 {
-	if (!IsInDialogue() && bCanCastDash && !bMoveLocked)
+	if (!IsInDialogue() && bCanCastDash && bDashLearned && !bMoveLocked)
 	{
 		Spells->CastDash();
 	}
@@ -446,7 +446,7 @@ void AIsekaiCharacter::OnCastDash()
 
 void AIsekaiCharacter::OnToggleLight()
 {
-	if (IsInDialogue())
+	if (IsInDialogue() || !bLightLearned || bMoveLocked)
 	{
 		return;
 	}

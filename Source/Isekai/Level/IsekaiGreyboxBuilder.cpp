@@ -26,7 +26,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerStart.h"
 #include "HAL/IConsoleManager.h"
-#include "Story/IsekaiPrologueDirector.h"
+#include "Story/IsekaiStoryDirector.h"
 #include "Math/RandomStream.h"
 #include "World/IsekaiCampfire.h"
 #include "World/IsekaiFloatingStone.h"
@@ -49,6 +49,21 @@ namespace IsekaiGreybox
 	const double DaisTopZ = HighlandZ + 2.0 * Meter;
 
 	const FVector RuinsCenter(740.0 * Meter, 0.0, 0.0);
+
+	/** 벽에 낼 구멍. Center는 벽 시작점에서의 거리, Bottom과 Top은 바닥에서의 높이 (cm). */
+	struct FWallOpening
+	{
+		double Center = 0.0;
+		double Width = 0.0;
+		double Bottom = 0.0;
+		double Top = 0.0;
+
+		FWallOpening() = default;
+		FWallOpening(double InCenter, double InWidth, double InBottom, double InTop)
+			: Center(InCenter), Width(InWidth), Bottom(InBottom), Top(InTop)
+		{
+		}
+	};
 
 	struct FBuilder
 	{
@@ -135,6 +150,60 @@ namespace IsekaiGreybox
 			// 지붕은 몸통보다 조금 넓고 낮은 상자로 표시만 한다.
 			AddBox(Base + FVector(0.0, 0.0, 475.0), FVector(900.0, 700.0, 150.0), Rotation,
 				FString::Printf(TEXT("House_%02d_Roof"), Index), TEXT("Greybox/Village"));
+		}
+
+		/**
+		 * 벽 하나를 놓는다. Start와 End는 바닥 높이에서 벽 가운데 선의 양 끝이다.
+		 * Openings는 문과 창문 자리로, 그 부분만 비워 두고 위아래를 채운다.
+		 */
+		void AddWall(const FVector& Start, const FVector& End, double Height, double Thickness,
+			TArray<FWallOpening> Openings, const FString& Label, const TCHAR* Folder)
+		{
+			const FVector Along = End - Start;
+			const double Length = Along.Size();
+			const FVector Direction = Along / Length;
+			const FRotator Rotation = Direction.Rotation();
+
+			Openings.Sort([](const FWallOpening& A, const FWallOpening& B) { return A.Center < B.Center; });
+
+			int32 Piece = 0;
+			auto AddPiece = [&](double From, double To, double Bottom, double Top)
+			{
+				if (To - From < 1.0 || Top - Bottom < 1.0)
+				{
+					return;
+				}
+				const FVector Center = Start + Direction * ((From + To) * 0.5) + FVector(0.0, 0.0, (Bottom + Top) * 0.5);
+				AddBox(Center, FVector(To - From, Thickness, Top - Bottom), Rotation, FString::Printf(TEXT("%s_%02d"), *Label, Piece++), Folder);
+			};
+
+			double Cursor = 0.0;
+			for (const FWallOpening& Opening : Openings)
+			{
+				const double From = Opening.Center - Opening.Width * 0.5;
+				const double To = Opening.Center + Opening.Width * 0.5;
+				AddPiece(Cursor, From, 0.0, Height);
+				AddPiece(From, To, 0.0, Opening.Bottom);
+				AddPiece(From, To, Opening.Top, Height);
+				Cursor = To;
+			}
+			AddPiece(Cursor, Length, 0.0, Height);
+		}
+
+		void AddLight(const FVector& Location, float Intensity, float Radius, const FLinearColor& Color, const FString& Label, const TCHAR* Folder)
+		{
+			APointLight* Light = Spawn<APointLight>(Location, FRotator::ZeroRotator, Label, Folder);
+			if (Light && Light->GetLightComponent())
+			{
+				ULightComponent* LightComponent = Light->GetLightComponent();
+				LightComponent->SetMobility(EComponentMobility::Movable);
+				LightComponent->SetIntensity(Intensity);
+				LightComponent->SetLightColor(Color);
+				if (UPointLightComponent* PointComponent = Cast<UPointLightComponent>(LightComponent))
+				{
+					PointComponent->SetAttenuationRadius(Radius);
+				}
+			}
 		}
 
 		void AddLantern(const FVector& Base, int32 Index)
@@ -448,8 +517,9 @@ namespace IsekaiGreybox
 		}
 
 		// 가운데의 제단. 살펴보면 첫 구역이 끝난다. 대사는 임시 내용이다.
-		if (AIsekaiExaminable* Altar = Builder.Spawn<AIsekaiExaminable>(FVector(RuinsCenter.X + 600.0, 0.0, DaisTopZ + 60.0),
-			FRotator::ZeroRotator, TEXT("Ruins_Altar"), TEXT("Greybox/Ruins")))
+		AIsekaiExaminable* AltarActor = Builder.Spawn<AIsekaiExaminable>(FVector(RuinsCenter.X + 600.0, 0.0, DaisTopZ + 60.0),
+			FRotator::ZeroRotator, TEXT("Ruins_Altar"), TEXT("Greybox/Ruins"));
+		if (AIsekaiExaminable* Altar = AltarActor)
 		{
 			Altar->SetActorScale3D(FVector(2.0, 3.0, 1.2));
 			Altar->PromptText = FText::FromString(TEXT("제단 살펴보기"));
@@ -501,15 +571,106 @@ namespace IsekaiGreybox
 			AnomalyActor->GetZone()->SetBoxExtent(FVector(2800.0, 2800.0, 1600.0));
 		}
 
+		// ---------- 세라의 집 ----------
+		//
+		// 마을 서쪽 끝의 단층집. 침실(서쪽)과 거실(동쪽), 앞문은 마을 쪽(동쪽)을 본다.
+		// 크기 14m x 10m, 벽 높이 3.6m. 창문과 문은 벽에 뚫린 구멍이다.
+
+		const FVector House(-60.0 * Meter, 12.0 * Meter, 0.0);
+		const double HalfX = 700.0;
+		const double HalfY = 500.0;
+		const double WallHeight = 360.0;
+		const double FloorTop = 10.0;
+		const FVector TowardVillage(1.0, 0.0, 0.0);
+
+		const FVector WakeSpot = House + FVector(-350.0, 300.0, FloorTop);
+		const FVector SeraBedside = House + FVector(-300.0, -60.0, FloorTop);
+		const FVector HouseDoor = House + FVector(HalfX + 150.0, 0.0, 0.0);
+		const FVector YardCenter = House + FVector(HalfX + 1000.0, 0.0, 0.0);
+		const FVector YardFire = YardCenter - TowardVillage * 450.0 + FVector(0.0, 650.0, 0.0);
+
+		{
+			const TCHAR* Folder = TEXT("Greybox/SeraHouse");
+
+			// 바닥
+			Builder.AddBox(House + FVector(0.0, 0.0, FloorTop * 0.5), FVector(HalfX * 2.0, HalfY * 2.0, FloorTop),
+				FRotator::ZeroRotator, TEXT("House_Floor"), Folder);
+
+			// 바깥벽. 모서리가 비지 않게 동서 벽을 벽 두께만큼 길게 뺀다.
+			Builder.AddWall(House + FVector(-HalfX, -HalfY - 15.0, 0.0), House + FVector(-HalfX, HalfY + 15.0, 0.0), WallHeight, 30.0,
+				{ FWallOpening(515.0, 140.0, 110.0, 230.0) }, TEXT("House_Wall_West"), Folder);
+			Builder.AddWall(House + FVector(HalfX, -HalfY - 15.0, 0.0), House + FVector(HalfX, HalfY + 15.0, 0.0), WallHeight, 30.0,
+				{ FWallOpening(215.0, 120.0, 110.0, 220.0), FWallOpening(515.0, 170.0, 0.0, 245.0), FWallOpening(815.0, 120.0, 110.0, 220.0) },
+				TEXT("House_Wall_East"), Folder);
+			Builder.AddWall(House + FVector(-HalfX, HalfY, 0.0), House + FVector(HalfX, HalfY, 0.0), WallHeight, 30.0,
+				{ FWallOpening(250.0, 140.0, 110.0, 230.0), FWallOpening(1000.0, 160.0, 110.0, 230.0) }, TEXT("House_Wall_North"), Folder);
+			Builder.AddWall(House + FVector(-HalfX, -HalfY, 0.0), House + FVector(HalfX, -HalfY, 0.0), WallHeight, 30.0,
+				{ FWallOpening(1150.0, 160.0, 110.0, 230.0) }, TEXT("House_Wall_South"), Folder);
+
+			// 침실과 거실 사이 벽. 가운데에 문 구멍.
+			Builder.AddWall(House + FVector(-200.0, -HalfY, 0.0), House + FVector(-200.0, HalfY, 0.0), WallHeight, 20.0,
+				{ FWallOpening(HalfY, 130.0, 0.0, 225.0) }, TEXT("House_Wall_Inner"), Folder);
+
+			// 지붕: 가운데가 높은 맞배지붕. 처마가 벽보다 60cm 나온다.
+			const FVector Ridge = House + FVector(0.0, 0.0, WallHeight + 230.0);
+			Builder.AddSlab(House + FVector(0.0, -HalfY - 60.0, WallHeight - 10.0), Ridge, HalfX * 2.0 + 120.0, 20.0, TEXT("House_Roof_South"), Folder);
+			Builder.AddSlab(House + FVector(0.0, HalfY + 60.0, WallHeight - 10.0), Ridge, HalfX * 2.0 + 120.0, 20.0, TEXT("House_Roof_North"), Folder);
+
+			// 굴뚝: 벽난로 바로 위.
+			Builder.AddBox(House + FVector(100.0, -HalfY + 60.0, WallHeight + 200.0), FVector(90.0, 90.0, 400.0),
+				FRotator::ZeroRotator, TEXT("House_Chimney"), Folder);
+
+			// 침실
+			Builder.AddBox(House + FVector(-520.0, 300.0, FloorTop + 22.0), FVector(200.0, 110.0, 45.0),
+				FRotator::ZeroRotator, TEXT("Bed"), Folder);
+			Builder.AddBox(House + FVector(-600.0, 300.0, FloorTop + 55.0), FVector(35.0, 80.0, 20.0),
+				FRotator::ZeroRotator, TEXT("Bed_Pillow"), Folder);
+			Builder.AddBox(House + FVector(-600.0, -380.0, FloorTop + 30.0), FVector(90.0, 60.0, 60.0),
+				FRotator(0.0, 8.0, 0.0), TEXT("Chest"), Folder);
+			Builder.AddBox(House + FVector(-300.0, 420.0, FloorTop + 40.0), FVector(50.0, 50.0, 80.0),
+				FRotator::ZeroRotator, TEXT("Bedside_Table"), Folder);
+			Builder.AddLight(House + FVector(-300.0, 420.0, FloorTop + 120.0), 1800.f, 600.f, FLinearColor(1.f, 0.72f, 0.45f),
+				TEXT("Light_Bedroom"), Folder);
+
+			// 거실
+			Builder.AddBox(House + FVector(250.0, 150.0, FloorTop + 37.0), FVector(180.0, 110.0, 75.0),
+				FRotator(0.0, 4.0, 0.0), TEXT("Table"), Folder);
+			Builder.AddShape(Builder.Cylinder, House + FVector(250.0, 30.0, FloorTop + 22.0), FVector(40.0, 40.0, 45.0),
+				FRotator::ZeroRotator, TEXT("Stool_A"), Folder);
+			Builder.AddShape(Builder.Cylinder, House + FVector(250.0, 270.0, FloorTop + 22.0), FVector(40.0, 40.0, 45.0),
+				FRotator::ZeroRotator, TEXT("Stool_B"), Folder);
+			Builder.AddBox(House + FVector(480.0, HalfY - 35.0, FloorTop + 110.0), FVector(220.0, 40.0, 220.0),
+				FRotator::ZeroRotator, TEXT("Bookshelf"), Folder);
+			Builder.AddBox(House + FVector(560.0, -HalfY + 50.0, FloorTop + 45.0), FVector(240.0, 70.0, 90.0),
+				FRotator::ZeroRotator, TEXT("Counter"), Folder);
+			Builder.AddBox(House + FVector(100.0, -HalfY + 40.0, FloorTop + 65.0), FVector(200.0, 60.0, 130.0),
+				FRotator::ZeroRotator, TEXT("Fireplace"), Folder);
+			Builder.AddLight(House + FVector(100.0, -HalfY + 110.0, FloorTop + 60.0), 6000.f, 900.f, FLinearColor(1.f, 0.55f, 0.25f),
+				TEXT("Light_Fireplace"), Folder);
+			Builder.AddLight(House + FVector(250.0, 150.0, WallHeight - 60.0), 2500.f, 1000.f, FLinearColor(1.f, 0.8f, 0.6f),
+				TEXT("Light_LivingRoom"), Folder);
+
+			// 마당 쪽: 문에서 마을 광장까지 이어진 길, 마당을 두른 낮은 울타리.
+			Builder.AddSlab(House + FVector(HalfX, 0.0, 6.0), FVector(0.0, 0.0, 6.0), 300.0, 6.0, TEXT("Path_House"), TEXT("Greybox/Path"));
+
+			const double FenceX0 = House.X + HalfX + 150.0;
+			const double FenceX1 = YardCenter.X + 1400.0;
+			const double FenceY = 1500.0;
+			Builder.AddBox(FVector((FenceX0 + FenceX1) * 0.5, House.Y + FenceY, 50.0), FVector(FenceX1 - FenceX0, 20.0, 100.0),
+				FRotator::ZeroRotator, TEXT("Yard_Fence_North"), Folder);
+			Builder.AddBox(FVector((FenceX0 + FenceX1) * 0.5, House.Y - FenceY, 50.0), FVector(FenceX1 - FenceX0, 20.0, 100.0),
+				FRotator::ZeroRotator, TEXT("Yard_Fence_South"), Folder);
+		}
+
+		Builder.Spawn<AIsekaiCampfire>(YardFire + FVector(0.0, 0.0, 15.0), FRotator::ZeroRotator, TEXT("Campfire_Yard"), TEXT("Greybox/Gameplay"));
+
 		// ---------- 플레이 요소 ----------
 
-		// 프롤로그는 폐허 위 하늘에서 떨어지며 시작한다.
-		const FVector DaisCenter(RuinsCenter.X, 0.0, DaisTopZ);
-		const FVector StartLocation = DaisCenter + FVector(-300.0, 0.0, 26000.0);
-		const FRotator StartRotation(0.0, 180.0, 0.0);
-
-		// 시작 지점. 레벨에 이미 있으면 옮기고, 없으면 만든다.
+		// 시작 지점: 침대 옆. 레벨에 이미 있으면 옮기고, 없으면 만든다.
 		{
+			const FVector StartLocation = WakeSpot + FVector(0.0, 0.0, 100.0);
+			const FRotator StartRotation(0.0, 0.0, 0.0);
+
 			APlayerStart* PlayerStart = nullptr;
 			for (TActorIterator<APlayerStart> It(World); It; ++It)
 			{
@@ -519,11 +680,12 @@ namespace IsekaiGreybox
 
 			if (PlayerStart)
 			{
-				// 게임이 도는 중에는 시작 지점을 옮길 수 없다. 그때는 이야기 진행이 플레이어를 직접 옮긴다.
-				if (!World->IsGameWorld())
+				// 게임이 도는 중에는 고정된 액터를 옮길 수 없으므로 먼저 움직일 수 있게 바꾼다.
+				if (World->IsGameWorld() && PlayerStart->GetRootComponent())
 				{
-					PlayerStart->SetActorLocationAndRotation(StartLocation, StartRotation);
+					PlayerStart->GetRootComponent()->SetMobility(EComponentMobility::Movable);
 				}
+				PlayerStart->SetActorLocationAndRotation(StartLocation, StartRotation);
 			}
 			else
 			{
@@ -531,58 +693,56 @@ namespace IsekaiGreybox
 			}
 		}
 
-		// 프롤로그의 마법사와 진행 담당. 마법사의 대사는 진행 담당이 직접 띄우므로 비워 둔다.
-		{
-			const TArray<TPair<FString, FString>> NoLines;
-			AIsekaiNPC* MageActor = Builder.AddNPC(DaisCenter + FVector(-1700.0, 300.0, 0.0), DaisCenter, TEXT("마법사"), NoLines);
+		// 인물. 세라의 대사는 이야기 진행이 직접 띄우므로 비워 둔다. 나머지 대사는 초안이다.
+		const TArray<TPair<FString, FString>> NoLines;
+		AIsekaiNPC* SeraActor = Builder.AddNPC(SeraBedside, WakeSpot, TEXT("세라"), NoLines);
 
-			AIsekaiPrologueDirector* Director = Builder.Spawn<AIsekaiPrologueDirector>(DaisCenter + FVector(0.0, 0.0, 300.0),
-				FRotator::ZeroRotator, TEXT("PrologueDirector"), TEXT("Greybox/Gameplay"));
-			if (Director)
-			{
-				Director->Mage = MageActor;
-				Director->Anomaly = AnomalyActor;
-				Director->DaisCenter = DaisCenter;
-
-				// 1장에서 마법사가 걷는 길: 폐허 앞에서 고갯길을 내려가 숲의 모닥불까지.
-				Director->RouteToCamp.Reset();
-				Director->RouteToCamp.Add(Path[9]);
-				Director->RouteToCamp.Add(Path[8]);
-				Director->RouteToCamp.Add(Path[7]);
-				Director->RouteToCamp.Add(Path[6]);
-				Director->RouteToCamp.Add(Path[5]);
-				Director->RouteToCamp.Add(Path[4]);
-				Director->RouteToCamp.Add(Path[3] + FVector(1800.0, 350.0, 0.0));
-				Director->PassTopIndex = 2;
-				Director->PassBottomIndex = 3;
-			}
-		}
-
-		// 마을 주민. 대사는 임시 내용이다.
+		AIsekaiNPC* ElderActor = nullptr;
 		{
 			TArray<TPair<FString, FString>> Lines;
-			Lines.Emplace(TEXT(""), TEXT("고갯길 쪽으로 가려고? 요즘 그쪽 짐승들이 부쩍 사나워졌어."));
-			Lines.Emplace(TEXT(""), TEXT("그래도 가겠다면 하나만 기억해. 놈들이 몸을 부풀리면 바로 뒤로 물러나. 그 직후가 빈틈이야."));
+			Lines.Emplace(TEXT(""), TEXT("세라가 데려온 아이로구나. 몸은 좀 괜찮으냐?"));
+			Lines.Emplace(TEXT(""), TEXT("세라는 무뚝뚝해도 한번 거둔 사람은 버리지 않는다. 잘 배워 두거라."));
+			ElderActor = Builder.AddNPC(Path[0] + FVector(300.0, -500.0, 0.0), Path[0], TEXT("촌장"), Lines);
+		}
+		{
+			TArray<TPair<FString, FString>> Lines;
+			Lines.Emplace(TEXT(""), TEXT("세라네 집에 사는 아이지? 고갯길 쪽엔 가지 마라. 요즘 짐승들이 부쩍 사나워졌어."));
+			Lines.Emplace(TEXT(""), TEXT("놈들이 몸을 일으키면 바로 물러나. 그 직후가 빈틈이야."));
 			Builder.AddNPC(FVector(50.0 * Meter, 600.0, 0.0), FVector(40.0 * Meter, 0.0, 0.0), TEXT("마을 주민"), Lines);
 		}
 
-		// 모닥불. 쉬면 회복하고, 쓰러졌을 때 여기로 돌아온다.
-		// 첫 조우 직전과, 마지막 조우 직전에 하나씩 둔다.
+		// 이야기 진행 담당
+		if (AIsekaiStoryDirector* Director = Builder.Spawn<AIsekaiStoryDirector>(House + FVector(0.0, 0.0, 600.0),
+			FRotator::ZeroRotator, TEXT("StoryDirector"), TEXT("Greybox/Gameplay")))
+		{
+			Director->Sera = SeraActor;
+			Director->Elder = ElderActor;
+			Director->Altar = AltarActor;
+			Director->WakeSpot = WakeSpot;
+			Director->SeraBedside = SeraBedside;
+			Director->HouseDoor = HouseDoor;
+			Director->YardCenter = YardCenter;
+			Director->YardFire = YardFire;
+			Director->TowardVillage = TowardVillage;
+			Director->VillageGate = Path[1];
+
+			// 마을 문에서 동쪽 폐허까지. Path[6]이 고갯길 아래, Path[7]이 위다.
+			Director->Route.Reset();
+			for (int32 Index = 1; Index < Path.Num(); ++Index)
+			{
+				Director->Route.Add(Path[Index]);
+			}
+			Director->PassBottomIndex = 5;
+			Director->PassTopIndex = 6;
+		}
+
+		// 모닥불. 쉬면 회복하고, 쓰러졌을 때 여기로 돌아온다. 떠나는 길에 하나씩.
 		Builder.Spawn<AIsekaiCampfire>(Path[3] + FVector(1500.0, 0.0, 15.0), FRotator::ZeroRotator,
 			TEXT("Campfire_Forest"), TEXT("Greybox/Gameplay"));
 		Builder.Spawn<AIsekaiCampfire>(FVector(640.0 * Meter, 3600.0, HighlandZ + 15.0), FRotator::ZeroRotator,
 			TEXT("Campfire_Highland"), TEXT("Greybox/Gameplay"));
 
-		// 마법 연습용 허수아비.
-		for (int32 Index = 0; Index < 3; ++Index)
-		{
-			Builder.Spawn<AIsekaiTargetDummy>(FVector((20.0 + Index * 4.0) * Meter, -14.0 * Meter, 90.0), FRotator::ZeroRotator,
-				FString::Printf(TEXT("Dummy_%02d"), Index), TEXT("Greybox/Gameplay"));
-		}
-
-		// 적은 레벨에 놓지 않는다. 이야기 진행이 장면에 맞춰 직접 내보낸다.
-
-		// 폐허의 짐승은 프롤로그 진행에 맞춰 실행 중에 나타난다. 여기서는 놓지 않는다.
+		// 적과 수련 도구는 레벨에 놓지 않는다. 이야기 진행이 장면에 맞춰 직접 내보낸다.
 
 		// ---------- 마무리 ----------
 

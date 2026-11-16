@@ -22,6 +22,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dummy", meta = (ClampMin = "0"))
 	float RespawnDelay = 3.f;
 
+	/** 끄면 한 번 깨진 뒤 다시 나타나지 않는다. 수련 과제에 쓴다. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Dummy")
+	bool bRespawn = true;
+
+	UFUNCTION(BlueprintPure, Category = "Dummy")
+	bool IsBroken() const { return bBroken; }
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -42,4 +49,5 @@ private:
 	void SetActive(bool bActive);
 
 	FTimerHandle RespawnTimer;
+	bool bBroken = false;
 };

@@ -154,6 +154,28 @@ float AIsekaiEnemy::GetHealthFraction() const
 	return Health->MaxHealth > 0.f ? Health->GetHealth() / Health->MaxHealth : 0.f;
 }
 
+void AIsekaiEnemy::MakeTrainingGolem()
+{
+	Health->MaxHealth = 60.f;
+	Health->ResetHealth();
+	Health->bInvulnerable = true;
+	AttackDamage = 4.f;
+	WindupTime = 0.9f;
+	RecoverTime = 1.4f;
+	MoveSpeed = 300.f;
+	KnockbackSpeed = 250.f;
+	GetCharacterMovement()->MaxWalkSpeed = MoveSpeed;
+
+	// 짐승과 구분되도록 꼬리 없이 몸통을 둥글게.
+	Tail->SetVisibility(false);
+	Torso->SetRelativeScale3D(FVector(1.f, 0.8f, 0.8f));
+}
+
+void AIsekaiEnemy::SetInvulnerable(bool bInInvulnerable)
+{
+	Health->bInvulnerable = bInInvulnerable;
+}
+
 void AIsekaiEnemy::MakeElite()
 {
 	bElite = true;
@@ -321,9 +343,14 @@ void AIsekaiEnemy::Tick(float DeltaSeconds)
 				FireShot(PlayerPawn);
 			}
 			// 예비 동작 동안 충분히 물러났으면 맞지 않는다.
-			else if (Distance <= AttackRange + 60.f)
+			else
 			{
-				UGameplayStatics::ApplyDamage(PlayerPawn, AttackDamage, GetController(), this, nullptr);
+				const bool bHit = Distance <= AttackRange + 60.f;
+				if (bHit)
+				{
+					UGameplayStatics::ApplyDamage(PlayerPawn, AttackDamage, GetController(), this, nullptr);
+				}
+				OnAttackResolved.Broadcast(bHit);
 			}
 			SetState(EState::Recover);
 		}

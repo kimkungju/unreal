@@ -2,13 +2,16 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Styling/SlateBrush.h"
 #include "Styling/SlateColor.h"
+#include "Rendering/SlateRenderTransform.h"
 #include "IsekaiHUD.generated.h"
 
 class AIsekaiCharacter;
 class AIsekaiEnemy;
 class AIsekaiTimeOfDay;
 class SWidget;
+class UTexture2D;
 
 /**
  * 화면 표시 전부를 맡는다.
@@ -24,6 +27,9 @@ class SWidget;
  *   오른쪽 아래 기술 (마름모 칸, 쿨다운과 마나 부족 표시)
  *   가운데 오른쪽 상호작용 안내 (키 상자)
  *   대화 중에는 평소 표시를 숨기고, 아래쪽을 어둡게 깔아 대사를 띄운다. 선택지는 오른쪽에 세로로.
+ *   그림 컷: 화면 전체에 한 장의 그림을 천천히 밀고 당기며(켄 번스) 아래에 자막을 띄운다.
+ *            그림 파일이 없으면 그 자리에 어떤 그림이 들어갈지 설명을 대신 띄운다.
+ *   성장 알림: 위 가운데에 잠깐 뜬다.
  *
  * Slate로 직접 그리며 엔진 기본 글꼴을 쓴다. 그림 파일은 쓰지 않는다.
  */
@@ -57,6 +63,26 @@ public:
 	/** 위아래 검은 띠 */
 	void SetLetterbox(bool bInEnabled) { bLetterbox = bInEnabled; }
 
+	/** 그림 컷 화면을 켠다. 검은 바탕이 화면을 덮는다. */
+	void BeginCutscene();
+
+	/** 그림 컷 화면을 끈다. */
+	void EndCutscene();
+
+	/**
+	 * 그림 한 장을 띄운다. 이미 그림이 떠 있으면 어둡게 사라진 뒤 바뀐다.
+	 * Texture가 없으면 Placeholder 문구를 대신 보여 준다.
+	 * Pan은 화면 픽셀 단위의 이동, Zoom은 배율. Duration 동안 From에서 To로 움직인다.
+	 */
+	void ShowCutsceneShot(UTexture2D* Texture, const FText& Placeholder, const FVector2D& PanFrom, const FVector2D& PanTo,
+		float ZoomFrom, float ZoomTo, float Duration);
+
+	/** 그림 아래 자막. 빈 문구를 주면 서서히 사라진다. */
+	void SetCutsceneSubtitle(const FText& InText);
+
+	/** 위 가운데에 잠깐 뜨는 알림. 성장, 새 기술을 알릴 때 쓴다. */
+	void ShowToast(const FText& InHeader, const FText& InBody, float Duration = 3.5f);
+
 	/** 체력, 기술 등 평소 표시를 통째로 켜고 끈다. */
 	void SetGameplayVisible(bool bInVisible) { bGameplayVisible = bInVisible; }
 
@@ -80,6 +106,22 @@ public:
 	bool CanAffordDash() const;
 	bool CanAffordLight() const;
 	bool IsLightOn() const;
+	bool IsAttackLearned() const;
+	bool IsDashLearned() const;
+	bool IsLightLearned() const;
+
+	bool IsCutsceneActive() const { return bCutsceneActive; }
+	bool HasCutsceneImage() const { return CutTexture != nullptr; }
+	const FSlateBrush* GetCutsceneBrush() const { return &CutBrush; }
+	float GetCutsceneImageAlpha() const { return CutImageAlpha; }
+	TOptional<FSlateRenderTransform> GetCutsceneTransform() const;
+	FText GetCutscenePlaceholder() const { return CutPlaceholder; }
+	FText GetCutsceneSubtitle() const { return CutSubtitle; }
+	float GetCutsceneSubtitleAlpha() const { return CutSubtitleAlpha; }
+
+	FText GetToastHeader() const { return ToastHeader; }
+	FText GetToastBody() const { return ToastBody; }
+	float GetToastAlpha() const;
 
 	bool IsBossShown() const { return Boss.IsValid(); }
 	float GetBossFraction() const;
@@ -113,6 +155,42 @@ protected:
 
 private:
 	const AIsekaiCharacter* GetCharacter() const;
+	void ApplyPendingShot();
+
+	/** 지금 떠 있는 그림. 가비지 컬렉션에 쓸려 가지 않게 붙잡아 둔다. */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> CutTexture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> PendingTexture;
+
+	FSlateBrush CutBrush;
+	bool bCutsceneActive = false;
+	float CutImageAlpha = 0.f;
+	float CutImageTarget = 0.f;
+	FText CutPlaceholder;
+	FText CutSubtitle;
+	float CutSubtitleAlpha = 0.f;
+	float CutSubtitleTarget = 0.f;
+	FVector2D CutPanFrom = FVector2D::ZeroVector;
+	FVector2D CutPanTo = FVector2D::ZeroVector;
+	float CutZoomFrom = 1.f;
+	float CutZoomTo = 1.f;
+	float CutDuration = 1.f;
+	float CutTime = 0.f;
+
+	bool bHasPendingShot = false;
+	FText PendingPlaceholder;
+	FVector2D PendingPanFrom = FVector2D::ZeroVector;
+	FVector2D PendingPanTo = FVector2D::ZeroVector;
+	float PendingZoomFrom = 1.f;
+	float PendingZoomTo = 1.f;
+	float PendingDuration = 1.f;
+
+	FText ToastHeader;
+	FText ToastBody;
+	float ToastTimeLeft = 0.f;
+	float ToastDuration = 1.f;
 
 	TSharedPtr<SWidget> RootWidget;
 	TWeakObjectPtr<AIsekaiTimeOfDay> TimeOfDay;

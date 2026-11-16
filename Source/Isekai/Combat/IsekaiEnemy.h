@@ -10,6 +10,9 @@ class USceneComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 
+/** 근접 공격이 끝났을 때. true면 맞혔고 false면 플레이어가 피했다. */
+DECLARE_MULTICAST_DELEGATE_OneParam(FIsekaiEnemyAttackResolved, bool /*bHit*/);
+
 /**
  * 네 발 짐승 형태의 기본 적. 플레이어가 가까이 오면 쫓아와서 공격한다.
  *
@@ -55,6 +58,16 @@ public:
 	/** 멀리서 탄을 쏘는 종류로 바꾼다. 목이 길고 몸이 가늘다. 만든 직후에 부른다. */
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
 	void MakeRanged();
+
+	/** 수련용 연습 상대로 바꾼다. 맞아도 아프지 않을 만큼 약하게 때리고, 처음에는 쓰러지지 않는다. */
+	UFUNCTION(BlueprintCallable, Category = "Enemy")
+	void MakeTrainingGolem();
+
+	/** 쓰러질 수 있게 하거나 막는다. */
+	UFUNCTION(BlueprintCallable, Category = "Enemy")
+	void SetInvulnerable(bool bInInvulnerable);
+
+	FIsekaiEnemyAttackResolved OnAttackResolved;
 
 	/** 크기, 체력, 공격력을 한꺼번에 키운다. 뿔이 달린다. 만든 직후에 부른다. */
 	UFUNCTION(BlueprintCallable, Category = "Enemy")
